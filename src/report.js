@@ -1,4 +1,4 @@
-import { fetchMetaAds, fetchShopify } from './windsor.js';
+import { fetchMetaAds, fetchShopifyOrders, fetchShopifyCustomers } from './windsor.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 
@@ -12,12 +12,13 @@ if (!WINDSOR_API_KEY || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
 }
 
 async function run() {
-  let metaData, shopifyData;
+  let metaData, shopifyOrderData, shopifyCustomerData;
 
   try {
-    [metaData, shopifyData] = await Promise.all([
+    [metaData, shopifyOrderData, shopifyCustomerData] = await Promise.all([
       fetchMetaAds(WINDSOR_API_KEY),
-      fetchShopify(WINDSOR_API_KEY),
+      fetchShopifyOrders(WINDSOR_API_KEY),
+      fetchShopifyCustomers(WINDSOR_API_KEY),
     ]);
   } catch (err) {
     console.error('Windsor API failed:', err.message);
@@ -27,7 +28,7 @@ async function run() {
     process.exit(1);
   }
 
-  const metrics = calculateMetrics(metaData, shopifyData);
+  const metrics = calculateMetrics(metaData, shopifyOrderData, shopifyCustomerData);
 
   let diagnosis;
   try {
@@ -59,7 +60,7 @@ function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
 }
 
-function calculateMetrics(metaRows, shopifyRows) {
+function calculateMetrics(metaRows, shopifyOrderRows, shopifyCustomerRows) {
   const adSpend = sum(metaRows, 'spend');
   const impressions = sum(metaRows, 'impressions');
   const clicks = sum(metaRows, 'clicks');
@@ -76,12 +77,12 @@ function calculateMetrics(metaRows, shopifyRows) {
   const checkoutRate = addToCarts > 0 ? (checkoutsInitiated / addToCarts) * 100 : 0;
   const purchaseRate = checkoutsInitiated > 0 ? (metaOrders / checkoutsInitiated) * 100 : 0;
 
-  const shopifyRevenue = sum(shopifyRows, 'order_net_sales');
-  const shopifyOrders = sum(shopifyRows, 'order_count');
+  const shopifyRevenue = sum(shopifyOrderRows, 'order_net_sales');
+  const shopifyOrders = sum(shopifyOrderRows, 'order_count');
   const shopifyAOV = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
 
-  const returningRows = shopifyRows.filter(r => String(r.customer_is_returning) === 'true');
-  const newRows = shopifyRows.filter(r => String(r.customer_is_returning) !== 'true');
+  const returningRows = shopifyCustomerRows.filter(r => String(r.customer_is_returning) === 'true');
+  const newRows = shopifyCustomerRows.filter(r => String(r.customer_is_returning) === 'false');
   const returningCustomerOrders = sum(returningRows, 'order_count');
   const newCustomerOrders = sum(newRows, 'order_count');
 

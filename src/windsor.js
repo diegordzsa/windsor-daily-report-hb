@@ -7,10 +7,14 @@ const META_FIELDS = [
   'purchase_roas_omni_purchase', 'cpc', 'cpm', 'ctr', 'frequency',
 ].join(',');
 
-const SHOPIFY_FIELDS = [
+const SHOPIFY_ORDER_FIELDS = [
   'date', 'order_count', 'order_total_price', 'order_net_sales',
   'order_gross_sales', 'order_total_discounts', 'order_refunds_subtotal',
-  'order_quantity', 'customer_is_returning',
+  'order_quantity',
+].join(',');
+
+const SHOPIFY_CUSTOMER_FIELDS = [
+  'date', 'order_count', 'customer_is_returning',
 ].join(',');
 
 const BASE_URL = 'https://connectors.windsor.ai';
@@ -35,6 +39,10 @@ export async function fetchMetaAds(apiKey) {
   return fetchConnector('facebook', apiKey, META_FIELDS);
 }
 
-export async function fetchShopify(apiKey) {
-  return fetchConnector('shopify', apiKey, SHOPIFY_FIELDS);
+export async function fetchShopifyOrders(apiKey) {
+  return fetchConnector('shopify', apiKey, SHOPIFY_ORDER_FIELDS);
+}
+
+export async function fetchShopifyCustomers(apiKey) {
+  return fetchConnector('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS);
 }
