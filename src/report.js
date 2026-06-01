@@ -34,7 +34,7 @@ async function run() {
   try {
     diagnosis = await generateDiagnosis(metrics);
   } catch (err) {
-    console.error('Claude diagnosis failed:', err.message);
+    console.error('Claude diagnosis failed:', err.message, err.status ?? '', err.error ?? '');
     diagnosis = 'Diagnostico no disponible — error al generar analisis.';
   }
 

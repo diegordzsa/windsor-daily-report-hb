@@ -31,7 +31,7 @@ Identifica en 3-4 lineas:
 Responde en espanol, directo, sin introducciones.`;
 
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     max_tokens: 300,
     messages: [{ role: 'user', content: prompt }],
   });

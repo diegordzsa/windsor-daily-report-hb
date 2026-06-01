@@ -40,7 +40,8 @@ async function fetchConnector(connector, apiKey, fields) {
   }
 
   const json = await res.json();
-  return json.data ?? json;
+  const rows = json.data ?? json.result ?? json;
+  return Array.isArray(rows) ? rows : [];
 }
 
 export async function fetchMetaAds(apiKey) {
