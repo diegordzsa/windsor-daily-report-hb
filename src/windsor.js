@@ -25,12 +25,10 @@ function getYesterday() {
   return d.toISOString().slice(0, 10);
 }
 
-async function fetchConnector(connector, apiKey, fields) {
-  const yesterday = getYesterday();
+async function fetchWindsor(connector, apiKey, fields, dateParams) {
   const url = `${BASE_URL}/${connector}?` + new URLSearchParams({
     api_key: apiKey,
-    date_from: yesterday,
-    date_to: yesterday,
+    ...dateParams,
     fields,
   });
 
@@ -40,21 +38,26 @@ async function fetchConnector(connector, apiKey, fields) {
   }
 
   const json = await res.json();
-  console.log(`[Windsor ${connector}] response keys:`, Object.keys(json), 'type:', typeof json, 'isArray:', Array.isArray(json));
-  console.log(`[Windsor ${connector}] first 500 chars:`, JSON.stringify(json).slice(0, 500));
   const rows = json.data ?? json.result ?? json;
-  console.log(`[Windsor ${connector}] rows count:`, Array.isArray(rows) ? rows.length : 'NOT_ARRAY');
   return Array.isArray(rows) ? rows : [];
 }
 
 export async function fetchMetaAds(apiKey) {
-  return fetchConnector('facebook', apiKey, META_FIELDS);
+  const yesterday = getYesterday();
+  return fetchWindsor('facebook', apiKey, META_FIELDS, {
+    date_from: yesterday,
+    date_to: yesterday,
+  });
 }
 
 export async function fetchShopifyOrders(apiKey) {
-  return fetchConnector('shopify', apiKey, SHOPIFY_ORDER_FIELDS);
+  return fetchWindsor('shopify', apiKey, SHOPIFY_ORDER_FIELDS, {
+    date_preset: 'last_1d',
+  });
 }
 
 export async function fetchShopifyCustomers(apiKey) {
-  return fetchConnector('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS);
+  return fetchWindsor('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS, {
+    date_preset: 'last_1d',
+  });
 }
