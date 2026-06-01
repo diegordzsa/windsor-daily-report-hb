@@ -19,10 +19,18 @@ const SHOPIFY_CUSTOMER_FIELDS = [
 
 const BASE_URL = 'https://connectors.windsor.ai';
 
+function getYesterday() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function fetchConnector(connector, apiKey, fields) {
+  const yesterday = getYesterday();
   const url = `${BASE_URL}/${connector}?` + new URLSearchParams({
     api_key: apiKey,
-    date_preset: 'yesterday',
+    date_from: yesterday,
+    date_to: yesterday,
     fields,
   });
 
