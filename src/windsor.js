@@ -1,0 +1,40 @@
+const META_FIELDS = [
+  'date', 'spend', 'impressions', 'clicks', 'actions_link_click',
+  'actions_offsite_conversion_fb_pixel_add_to_cart',
+  'actions_offsite_conversion_fb_pixel_initiate_checkout',
+  'actions_offsite_conversion_fb_pixel_purchase',
+  'action_values_offsite_conversion_fb_pixel_purchase',
+  'purchase_roas_omni_purchase', 'cpc', 'cpm', 'ctr', 'frequency',
+].join(',');
+
+const SHOPIFY_FIELDS = [
+  'date', 'order_count', 'order_total_price', 'order_net_sales',
+  'order_gross_sales', 'order_total_discounts', 'order_refunds_subtotal',
+  'order_quantity', 'customer_is_returning',
+].join(',');
+
+const BASE_URL = 'https://connectors.windsor.ai';
+
+async function fetchConnector(connector, apiKey, fields) {
+  const url = `${BASE_URL}/${connector}?` + new URLSearchParams({
+    api_key: apiKey,
+    date_preset: 'yesterday',
+    fields,
+  });
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Windsor ${connector} error: ${res.status} ${res.statusText}`);
+  }
+
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+export async function fetchMetaAds(apiKey) {
+  return fetchConnector('facebook', apiKey, META_FIELDS);
+}
+
+export async function fetchShopify(apiKey) {
+  return fetchConnector('shopify', apiKey, SHOPIFY_FIELDS);
+}
