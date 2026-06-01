@@ -40,7 +40,10 @@ async function fetchConnector(connector, apiKey, fields) {
   }
 
   const json = await res.json();
+  console.log(`[Windsor ${connector}] response keys:`, Object.keys(json), 'type:', typeof json, 'isArray:', Array.isArray(json));
+  console.log(`[Windsor ${connector}] first 500 chars:`, JSON.stringify(json).slice(0, 500));
   const rows = json.data ?? json.result ?? json;
+  console.log(`[Windsor ${connector}] rows count:`, Array.isArray(rows) ? rows.length : 'NOT_ARRAY');
   return Array.isArray(rows) ? rows : [];
 }
 
