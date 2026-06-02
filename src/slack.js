@@ -31,7 +31,7 @@ export function formatReport({ date, metrics, diagnosis }) {
     `:moneybag: *REVENUE*`,
     `  Net Sales (Shopify): €${fmt(metrics.shopifyRevenue)}`,
     `  Ordenes: ${metrics.shopifyOrders} | AOV: €${fmt(metrics.shopifyAOV)}`,
-    `  Nuevos: ${metrics.newCustomerOrders} | Recurrentes: ${metrics.returningCustomerOrders}`,
+    `  1ª Susc: ${metrics.firstSubOrders} | Recurrentes: ${metrics.recurringOrders}`,
     ``,
     `:loudspeaker: *PAID ADS (Meta)*`,
     `  Gasto: €${fmt(metrics.adSpend)}`,

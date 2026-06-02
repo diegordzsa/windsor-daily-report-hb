@@ -7,14 +7,10 @@ const META_FIELDS = [
   'purchase_roas_omni_purchase', 'cpc', 'cpm', 'ctr', 'frequency',
 ].join(',');
 
-const SHOPIFY_ORDER_FIELDS = [
+const SHOPIFY_FIELDS = [
   'date', 'order_count', 'order_total_price', 'order_net_sales',
   'order_gross_sales', 'order_total_discounts', 'order_refunds_subtotal',
-  'order_quantity',
-].join(',');
-
-const SHOPIFY_CUSTOMER_FIELDS = [
-  'date', 'order_count', 'customer_is_returning',
+  'order_quantity', 'order_tags',
 ].join(',');
 
 const BASE_URL = 'https://connectors.windsor.ai';
@@ -35,7 +31,7 @@ async function fetchWindsor(connector, apiKey, fields, extraParams) {
 
   const url = `${BASE_URL}/${connector}?` + new URLSearchParams(params);
 
-  console.log(`[Windsor ${connector}] Fetching with params:`, JSON.stringify({ ...extraParams, fields: fields.substring(0, 50) + '...' }));
+  console.log(`[Windsor ${connector}] Fetching with params:`, JSON.stringify({ ...extraParams, fields: fields.substring(0, 60) + '...' }));
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -60,14 +56,7 @@ export async function fetchMetaAds(apiKey) {
 }
 
 export async function fetchShopifyOrders(apiKey) {
-  return fetchWindsor('shopify', apiKey, SHOPIFY_ORDER_FIELDS, {
-    date_preset: 'last_3d',
-    account_id: SHOPIFY_ACCOUNT,
-  });
-}
-
-export async function fetchShopifyCustomers(apiKey) {
-  return fetchWindsor('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS, {
+  return fetchWindsor('shopify', apiKey, SHOPIFY_FIELDS, {
     date_preset: 'last_3d',
     account_id: SHOPIFY_ACCOUNT,
   });

@@ -1,4 +1,4 @@
-import { fetchMetaAds, fetchShopifyOrders, fetchShopifyCustomers, getYesterday } from './windsor.js';
+import { fetchMetaAds, fetchShopifyOrders, getYesterday } from './windsor.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 
@@ -12,13 +12,12 @@ if (!WINDSOR_API_KEY || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
 }
 
 async function run() {
-  let metaData, shopifyOrderData, shopifyCustomerData;
+  let metaData, shopifyData;
 
   try {
-    [metaData, shopifyOrderData, shopifyCustomerData] = await Promise.all([
+    [metaData, shopifyData] = await Promise.all([
       fetchMetaAds(WINDSOR_API_KEY),
       fetchShopifyOrders(WINDSOR_API_KEY),
-      fetchShopifyCustomers(WINDSOR_API_KEY),
     ]);
   } catch (err) {
     console.error('Windsor API failed:', err.message);
@@ -30,21 +29,15 @@ async function run() {
 
   const yesterday = getYesterday();
 
-  // Log raw data before filtering
-  const orderDates = [...new Set(shopifyOrderData.map(r => r.date))];
+  const orderDates = [...new Set(shopifyData.map(r => r.date))];
   console.log(`[Debug] Yesterday: ${yesterday}`);
-  console.log(`[Debug] Shopify orders raw: ${shopifyOrderData.length} rows, dates: ${orderDates.join(', ')}`);
-  console.log(`[Debug] Shopify orders raw order_count sum: ${shopifyOrderData.reduce((s, r) => s + (Number(r.order_count) || 0), 0)}`);
+  console.log(`[Debug] Shopify raw: ${shopifyData.length} rows, dates: ${orderDates.join(', ')}`);
 
-  shopifyOrderData = shopifyOrderData.filter(r => r.date === yesterday);
-  shopifyCustomerData = shopifyCustomerData.filter(r => r.date === yesterday);
+  shopifyData = shopifyData.filter(r => r.date === yesterday);
+  console.log(`[Debug] After filter: ${shopifyData.length} rows`);
 
-  const orderCountSum = shopifyOrderData.reduce((s, r) => s + (Number(r.order_count) || 0), 0);
-  const netSalesSum = shopifyOrderData.reduce((s, r) => s + (Number(r.order_net_sales) || 0), 0);
-  console.log(`[Debug] After filter: ${shopifyOrderData.length} order rows, ${shopifyCustomerData.length} customer rows`);
-  console.log(`[Debug] order_count sum: ${orderCountSum}, net_sales sum: ${netSalesSum.toFixed(2)}`);
-
-  const metrics = calculateMetrics(metaData, shopifyOrderData, shopifyCustomerData);
+  const metrics = calculateMetrics(metaData, shopifyData);
+  console.log(`[Debug] Orders: ${metrics.shopifyOrders}, Net Sales: ${metrics.shopifyRevenue.toFixed(2)}, 1st Sub: ${metrics.firstSubOrders}, Recurring: ${metrics.recurringOrders}`);
 
   let diagnosis;
   try {
@@ -73,7 +66,12 @@ function sum(rows, field) {
   return rows.reduce((acc, row) => acc + (Number(row[field]) || 0), 0);
 }
 
-function calculateMetrics(metaRows, shopifyOrderRows, shopifyCustomerRows) {
+function hasTag(row, tag) {
+  const tags = row.order_tags || '';
+  return tags.includes(tag);
+}
+
+function calculateMetrics(metaRows, shopifyRows) {
   const adSpend = sum(metaRows, 'spend');
   const impressions = sum(metaRows, 'impressions');
   const clicks = sum(metaRows, 'clicks');
@@ -90,21 +88,21 @@ function calculateMetrics(metaRows, shopifyOrderRows, shopifyCustomerRows) {
   const checkoutRate = addToCarts > 0 ? (checkoutsInitiated / addToCarts) * 100 : 0;
   const purchaseRate = checkoutsInitiated > 0 ? (metaOrders / checkoutsInitiated) * 100 : 0;
 
-  const shopifyRevenue = sum(shopifyOrderRows, 'order_net_sales');
-  const shopifyOrders = sum(shopifyOrderRows, 'order_count');
+  const shopifyRevenue = sum(shopifyRows, 'order_net_sales');
+  const shopifyOrders = sum(shopifyRows, 'order_count');
   const shopifyAOV = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
 
-  const returningRows = shopifyCustomerRows.filter(r => String(r.customer_is_returning) === 'true');
-  const newRows = shopifyCustomerRows.filter(r => String(r.customer_is_returning) === 'false');
-  const returningCustomerOrders = sum(returningRows, 'order_count');
-  const newCustomerOrders = sum(newRows, 'order_count');
+  // Appstle subscription breakdown (only count actual orders, not refund rows)
+  const orderRows = shopifyRows.filter(r => Number(r.order_count) > 0);
+  const firstSubOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_first_order')).length;
+  const recurringOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_recurring_order')).length;
 
   return {
     adSpend, impressions, clicks, linkClicks, addToCarts,
     checkoutsInitiated, metaOrders, metaAttributedRevenue,
     metaROAS, cpo, ctr, addToCartRate, checkoutRate, purchaseRate,
     shopifyRevenue, shopifyOrders, shopifyAOV,
-    newCustomerOrders, returningCustomerOrders,
+    firstSubOrders, recurringOrders,
   };
 }
 

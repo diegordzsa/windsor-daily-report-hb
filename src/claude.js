@@ -22,6 +22,8 @@ METRICAS SHOPIFY (fuente de verdad):
 - Revenue neto: €${metrics.shopifyRevenue.toFixed(2)}
 - Ordenes reales: ${metrics.shopifyOrders}
 - AOV: €${metrics.shopifyAOV.toFixed(2)}
+- 1ª Suscripcion (Appstle): ${metrics.firstSubOrders}
+- Recurrentes (Appstle): ${metrics.recurringOrders}
 
 Identifica en 3-4 lineas:
 1. Cual es el punto mas debil del funnel hoy y por que
