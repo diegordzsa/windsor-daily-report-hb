@@ -1,4 +1,4 @@
-import { fetchMetaAds, fetchShopifyOrders, fetchShopifyCustomers } from './windsor.js';
+import { fetchMetaAds, fetchShopifyOrders, fetchShopifyCustomers, getYesterday } from './windsor.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 
@@ -28,6 +28,12 @@ async function run() {
     process.exit(1);
   }
 
+  // Windsor Shopify last_1d returns empty — we fetch last_3d and filter by yesterday
+  const yesterday = getYesterday();
+  shopifyOrderData = shopifyOrderData.filter(r => r.date === yesterday);
+  shopifyCustomerData = shopifyCustomerData.filter(r => r.date === yesterday);
+  console.log(`Filtered Shopify data for ${yesterday}: ${shopifyOrderData.length} order rows, ${shopifyCustomerData.length} customer rows`);
+
   const metrics = calculateMetrics(metaData, shopifyOrderData, shopifyCustomerData);
 
   let diagnosis;
@@ -38,11 +44,8 @@ async function run() {
     diagnosis = 'Diagnostico no disponible — error al generar analisis.';
   }
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
   const reportText = formatReport({
-    date: yesterday.toISOString(),
+    date: yesterday,
     metrics,
     diagnosis,
   });

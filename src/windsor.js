@@ -19,7 +19,7 @@ const SHOPIFY_CUSTOMER_FIELDS = [
 
 const BASE_URL = 'https://connectors.windsor.ai';
 
-function getYesterday() {
+export function getYesterday() {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
@@ -52,12 +52,12 @@ export async function fetchMetaAds(apiKey) {
 
 export async function fetchShopifyOrders(apiKey) {
   return fetchWindsor('shopify', apiKey, SHOPIFY_ORDER_FIELDS, {
-    date_preset: 'last_1d',
+    date_preset: 'last_3d',
   });
 }
 
 export async function fetchShopifyCustomers(apiKey) {
   return fetchWindsor('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS, {
-    date_preset: 'last_1d',
+    date_preset: 'last_3d',
   });
 }
