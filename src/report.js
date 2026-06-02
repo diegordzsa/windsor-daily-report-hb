@@ -28,11 +28,21 @@ async function run() {
     process.exit(1);
   }
 
-  // Windsor Shopify last_1d returns empty — we fetch last_3d and filter by yesterday
   const yesterday = getYesterday();
+
+  // Log raw data before filtering
+  const orderDates = [...new Set(shopifyOrderData.map(r => r.date))];
+  console.log(`[Debug] Yesterday: ${yesterday}`);
+  console.log(`[Debug] Shopify orders raw: ${shopifyOrderData.length} rows, dates: ${orderDates.join(', ')}`);
+  console.log(`[Debug] Shopify orders raw order_count sum: ${shopifyOrderData.reduce((s, r) => s + (Number(r.order_count) || 0), 0)}`);
+
   shopifyOrderData = shopifyOrderData.filter(r => r.date === yesterday);
   shopifyCustomerData = shopifyCustomerData.filter(r => r.date === yesterday);
-  console.log(`Filtered Shopify data for ${yesterday}: ${shopifyOrderData.length} order rows, ${shopifyCustomerData.length} customer rows`);
+
+  const orderCountSum = shopifyOrderData.reduce((s, r) => s + (Number(r.order_count) || 0), 0);
+  const netSalesSum = shopifyOrderData.reduce((s, r) => s + (Number(r.order_net_sales) || 0), 0);
+  console.log(`[Debug] After filter: ${shopifyOrderData.length} order rows, ${shopifyCustomerData.length} customer rows`);
+  console.log(`[Debug] order_count sum: ${orderCountSum}, net_sales sum: ${netSalesSum.toFixed(2)}`);
 
   const metrics = calculateMetrics(metaData, shopifyOrderData, shopifyCustomerData);
 

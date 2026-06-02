@@ -18,6 +18,7 @@ const SHOPIFY_CUSTOMER_FIELDS = [
 ].join(',');
 
 const BASE_URL = 'https://connectors.windsor.ai';
+const SHOPIFY_ACCOUNT = 'ex9fk2-1i.myshopify.com';
 
 export function getYesterday() {
   const d = new Date();
@@ -25,21 +26,29 @@ export function getYesterday() {
   return d.toISOString().slice(0, 10);
 }
 
-async function fetchWindsor(connector, apiKey, fields, dateParams) {
-  const url = `${BASE_URL}/${connector}?` + new URLSearchParams({
+async function fetchWindsor(connector, apiKey, fields, extraParams) {
+  const params = {
     api_key: apiKey,
-    ...dateParams,
+    ...extraParams,
     fields,
-  });
+  };
+
+  const url = `${BASE_URL}/${connector}?` + new URLSearchParams(params);
+
+  console.log(`[Windsor ${connector}] Fetching with params:`, JSON.stringify({ ...extraParams, fields: fields.substring(0, 50) + '...' }));
 
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`Windsor ${connector} error: ${res.status} ${res.statusText}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(`Windsor ${connector} error: ${res.status} ${res.statusText} — ${body.substring(0, 200)}`);
   }
 
   const json = await res.json();
   const rows = json.data ?? json.result ?? json;
-  return Array.isArray(rows) ? rows : [];
+  const result = Array.isArray(rows) ? rows : [];
+
+  console.log(`[Windsor ${connector}] Got ${result.length} rows`);
+  return result;
 }
 
 export async function fetchMetaAds(apiKey) {
@@ -53,11 +62,13 @@ export async function fetchMetaAds(apiKey) {
 export async function fetchShopifyOrders(apiKey) {
   return fetchWindsor('shopify', apiKey, SHOPIFY_ORDER_FIELDS, {
     date_preset: 'last_3d',
+    account_id: SHOPIFY_ACCOUNT,
   });
 }
 
 export async function fetchShopifyCustomers(apiKey) {
   return fetchWindsor('shopify', apiKey, SHOPIFY_CUSTOMER_FIELDS, {
     date_preset: 'last_3d',
+    account_id: SHOPIFY_ACCOUNT,
   });
 }
