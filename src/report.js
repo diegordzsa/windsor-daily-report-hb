@@ -92,9 +92,8 @@ function calculateMetrics(metaRows, shopifyRows) {
   const shopifyOrders = sum(shopifyRows, 'order_count');
   const shopifyAOV = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
 
-  // Appstle subscription breakdown (only count actual orders, not refund rows)
   const orderRows = shopifyRows.filter(r => Number(r.order_count) > 0);
-  const firstSubOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_first_order')).length;
+  const firstSubOrders = orderRows.filter(r => hasTag(r, 'Kaching Subscription First Order')).length;
   const recurringOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_recurring_order')).length;
 
   return {
