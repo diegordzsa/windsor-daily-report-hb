@@ -8,7 +8,6 @@ export function getYesterday() {
 }
 
 export async function fetchShopifyOrders(clientId, clientSecret) {
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const yesterday = getYesterday();
   const twoDaysAgo = new Date(yesterday);
@@ -29,7 +28,7 @@ export async function fetchShopifyOrders(clientId, clientSecret) {
   while (url) {
     console.log(`[Shopify] Fetching orders...`);
     const res = await fetch(url, {
-      headers: { 'Authorization': `Basic ${credentials}` },
+      headers: { 'X-Shopify-Access-Token': clientSecret },
     });
 
     if (!res.ok) {
