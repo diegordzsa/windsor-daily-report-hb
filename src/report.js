@@ -1,13 +1,16 @@
-import { fetchMetaAds, fetchShopifyOrders, getYesterday } from './windsor.js';
+import { fetchShopifyOrders, getYesterday } from './shopify.js';
+import { fetchMetaAds } from './meta.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 
-const WINDSOR_API_KEY = process.env.WINDSOR_API_KEY;
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
-if (!WINDSOR_API_KEY || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
-  console.error('Missing required env vars: WINDSOR_API_KEY, ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL');
+if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET || !META_ACCESS_TOKEN || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
+  console.error('Missing required env vars: SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET, META_ACCESS_TOKEN, ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL');
   process.exit(1);
 }
 
@@ -16,25 +19,29 @@ async function run() {
 
   try {
     [metaData, shopifyData] = await Promise.all([
-      fetchMetaAds(WINDSOR_API_KEY),
-      fetchShopifyOrders(WINDSOR_API_KEY),
+      fetchMetaAds(META_ACCESS_TOKEN),
+      fetchShopifyOrders(SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET),
     ]);
   } catch (err) {
-    console.error('Windsor API failed:', err.message);
+    console.error('API fetch failed:', err.message);
     await sendToSlack(SLACK_WEBHOOK_URL,
-      `:warning: *Hair Biolabs ES — Reporte Diario FALLIDO*\nNo se pudieron obtener datos de Windsor.\nError: ${err.message}`
+      `:warning: *Hair Biolabs ES — Reporte Diario FALLIDO*\nNo se pudieron obtener datos.\nError: ${err.message}`
     );
     process.exit(1);
   }
 
   const yesterday = getYesterday();
 
-  const orderDates = [...new Set(shopifyData.map(r => r.date))];
   console.log(`[Debug] Yesterday: ${yesterday}`);
-  console.log(`[Debug] Shopify raw: ${shopifyData.length} rows, dates: ${orderDates.join(', ')}`);
+  console.log(`[Debug] Meta rows: ${metaData.length}, Shopify rows: ${shopifyData.length}`);
 
-  shopifyData = shopifyData.filter(r => r.date === yesterday);
-  console.log(`[Debug] After filter: ${shopifyData.length} rows`);
+  if (metaData.length === 0 && shopifyData.length === 0) {
+    console.warn('Both APIs returned 0 rows — sending warning to Slack');
+    await sendToSlack(SLACK_WEBHOOK_URL,
+      `:warning: *Hair Biolabs ES — Reporte Diario*\n${yesterday}\n\nNo se obtuvieron datos de Meta ni de Shopify. Verifica que los tokens de acceso siguen activos.`
+    );
+    process.exit(1);
+  }
 
   const metrics = calculateMetrics(metaData, shopifyData);
   console.log(`[Debug] Orders: ${metrics.shopifyOrders}, Net Sales: ${metrics.shopifyRevenue.toFixed(2)}, 1st Sub: ${metrics.firstSubOrders}, Recurring: ${metrics.recurringOrders}`);
