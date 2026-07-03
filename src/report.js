@@ -3,14 +3,13 @@ import { fetchMetaAds } from './meta.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 
-const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
-const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
-if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET || !META_ACCESS_TOKEN || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
-  console.error('Missing required env vars: SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET, META_ACCESS_TOKEN, ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL');
+if (!SHOPIFY_ACCESS_TOKEN || !META_ACCESS_TOKEN || !ANTHROPIC_API_KEY || !SLACK_WEBHOOK_URL) {
+  console.error('Missing required env vars: SHOPIFY_ACCESS_TOKEN, META_ACCESS_TOKEN, ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL');
   process.exit(1);
 }
 
@@ -20,7 +19,7 @@ async function run() {
   try {
     [metaData, shopifyData] = await Promise.all([
       fetchMetaAds(META_ACCESS_TOKEN),
-      fetchShopifyOrders(SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET),
+      fetchShopifyOrders(SHOPIFY_ACCESS_TOKEN),
     ]);
   } catch (err) {
     console.error('API fetch failed:', err.message);
