@@ -12,7 +12,8 @@ METRICAS PAID (Meta Ads):
 - Add to Carts: ${metrics.addToCarts}
 - Checkouts Iniciados: ${metrics.checkoutsInitiated}
 - Compras (atribuidas Meta): ${metrics.metaOrders}
-- ROAS Meta: ${metrics.metaROAS.toFixed(2)}x
+- ROAS Meta (atribuido): ${metrics.metaROAS.toFixed(2)}x
+- MER-ROAS (Shopify revenue / ad spend): ${metrics.merROAS.toFixed(2)}x
 - CTR: ${metrics.ctr.toFixed(2)}%
 - Add to Cart Rate: ${metrics.addToCartRate.toFixed(2)}%
 - Checkout Rate: ${metrics.checkoutRate.toFixed(2)}%
@@ -27,7 +28,7 @@ METRICAS SHOPIFY (fuente de verdad):
 
 Identifica en 3-4 lineas:
 1. Cual es el punto mas debil del funnel hoy y por que
-2. Si el ROAS es bueno, malo o normal para un DTC de hair care (benchmark: 2.0x-3.5x)
+2. Compara el ROAS Meta vs MER-ROAS — si la diferencia es grande, que significa para la atribucion
 3. Una accion concreta que se deberia tomar hoy
 
 Responde en espanol, directo, sin introducciones.`;
