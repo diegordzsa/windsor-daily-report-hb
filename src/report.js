@@ -43,7 +43,17 @@ async function run() {
     process.exit(1);
   }
 
-  const metrics = calculateMetrics(metaData, shopifyData);
+  let usdToEur = 1;
+  try {
+    const rateRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=EUR');
+    const rateJson = await rateRes.json();
+    usdToEur = rateJson.rates.EUR;
+    console.log(`[FX] USD→EUR rate: ${usdToEur}`);
+  } catch (err) {
+    console.error('[FX] Exchange rate fetch failed, falling back to 1:1 —', err.message);
+  }
+
+  const metrics = calculateMetrics(metaData, shopifyData, usdToEur);
   console.log(`[Debug] Orders: ${metrics.shopifyOrders}, Net Sales: ${metrics.shopifyRevenue.toFixed(2)}, 1st Sub: ${metrics.firstSubOrders}, Recurring: ${metrics.recurringOrders}`);
 
   let diagnosis;
@@ -78,8 +88,9 @@ function hasTag(row, tag) {
   return tags.includes(tag);
 }
 
-function calculateMetrics(metaRows, shopifyRows) {
+function calculateMetrics(metaRows, shopifyRows, usdToEur) {
   const adSpend = sum(metaRows, 'spend');
+  const adSpendEUR = adSpend * usdToEur;
   const impressions = sum(metaRows, 'impressions');
   const clicks = sum(metaRows, 'clicks');
   const linkClicks = sum(metaRows, 'actions_link_click');
@@ -98,14 +109,14 @@ function calculateMetrics(metaRows, shopifyRows) {
   const shopifyRevenue = sum(shopifyRows, 'order_net_sales');
   const shopifyOrders = sum(shopifyRows, 'order_count');
   const shopifyAOV = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
-  const merROAS = adSpend > 0 ? shopifyRevenue / adSpend : 0;
+  const merROAS = adSpendEUR > 0 ? shopifyRevenue / adSpendEUR : 0;
 
   const orderRows = shopifyRows.filter(r => Number(r.order_count) > 0);
   const firstSubOrders = orderRows.filter(r => hasTag(r, 'Kaching Subscription First Order')).length;
   const recurringOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_recurring_order')).length;
 
   return {
-    adSpend, impressions, clicks, linkClicks, addToCarts,
+    adSpend, adSpendEUR, impressions, clicks, linkClicks, addToCarts,
     checkoutsInitiated, metaOrders, metaAttributedRevenue,
     metaROAS, merROAS, cpo, ctr, addToCartRate, checkoutRate, purchaseRate,
     shopifyRevenue, shopifyOrders, shopifyAOV,

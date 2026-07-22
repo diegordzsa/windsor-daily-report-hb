@@ -55,6 +55,9 @@ export async function fetchMetaAds(accessToken) {
 
   const data = json.data || [];
   console.log(`[Meta] Got ${data.length} rows`);
+  if (data.length > 0) {
+    console.log(`[Meta] Raw spend: ${data[0].spend}, date: ${data[0].date_start}`);
+  }
 
   if (data.length === 0) return [];
 

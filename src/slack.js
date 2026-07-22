@@ -34,7 +34,7 @@ export function formatReport({ date, metrics, diagnosis }) {
     `  1ª Susc: ${metrics.firstSubOrders} | Recurrentes: ${metrics.recurringOrders}`,
     ``,
     `:loudspeaker: *PAID ADS (Meta)*`,
-    `  Gasto: €${fmt(metrics.adSpend)}`,
+    `  Gasto: $${fmt(metrics.adSpend)}${metrics.adSpendEUR ? ` (€${fmt(metrics.adSpendEUR)})` : ''}`,
     `  ROAS (Meta): ${metrics.metaROAS.toFixed(2)}x | MER: ${metrics.merROAS.toFixed(2)}x`,
     `  CPO: €${fmt(metrics.cpo)}`,
     `  Revenue atribuido: €${fmt(metrics.metaAttributedRevenue)}`,
@@ -50,7 +50,7 @@ export function formatReport({ date, metrics, diagnosis }) {
     ...diagnosis.split('\n').map(line => `  ${line}`),
     ``,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `_Generado automaticamente a las 5:00 AM_`,
+    `_Generado automaticamente a las 9:00 AM_`,
   ].join('\n');
 }
 
