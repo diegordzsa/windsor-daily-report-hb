@@ -81,7 +81,7 @@ async function metaConsolidated(accountTz) {
   const d = new Date(`${todayInTz}T00:00:00Z`);
 
   const until = new Date(d); until.setUTCDate(until.getUTCDate() - 1);
-  const since = new Date(d); since.setUTCDate(since.getUTCDate() - 8);
+  const since = new Date(d); since.setUTCDate(since.getUTCDate() - 26);
   const iso = x => x.toISOString().slice(0, 10);
 
   console.log('===== 1.4 META CONSOLIDATED SPEND =====');
