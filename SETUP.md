@@ -101,15 +101,28 @@ El gasto del 2026-07-28 se midió tres veces: `1883,12` (29-jul 19:04 UTC),
 `1883,17` (30-jul ~19:0x UTC), `1883,18` (30-jul 03:52 UTC). Repta
 indefinidamente en el orden de ±0,003 %: esperar más no aporta nada.
 
+### Primer punto en la franja temprana
+
+El 2026-07-30 el gasto del 29-jul se leyó dos veces el mismo día:
+
+| Lectura | h post-cierre | Gasto | Error |
+|---|---|---|---|
+| dry run, 03:56 UTC | 5,94 | 2471,51 | **−0,150 %** |
+| envío real, 21:23 UTC | 23,39 | 2475,23 | referencia |
+
+La deriva encoge conforme pasan las horas: **−0,150 % a 6 h** frente a
+**−0,050 / −0,118 % a 11–12,6 h**. Las 09:00 (9 h) caen entre medias, así que
+cabe esperar del orden de −0,12 / −0,13 %.
+
 ### Limitación conocida
 
-**La franja medida es 11–12,6 h post-cierre, no 9 h.** La línea de log
+**No hay ninguna medición exactamente a 9 h.** La línea de log
 `[Meta] Raw spend` se añadió el 2026-07-22, así que las ejecuciones anteriores
 (que sí arrancaban entre 05:15 y 07:01 UTC, es decir 7–9 h post-cierre) no la
 registran y esa franja **no es recuperable hacia atrás**.
 
-Las 09:00 se apoyan en el umbral por defecto de 3 h, no en una medición directa
-a 9 h. Como el reporte imprime las horas de consolidación en el pie y registra
+Las 09:00 se apoyan en el umbral por defecto de 3 h y en la interpolación entre
+los puntos de 6 h y 11 h, no en una medición directa a 9 h. Como el reporte imprime las horas de consolidación en el pie y registra
 `[Meta] Raw spend for <fecha>`, la propia entrega diaria mide la deriva a 9 h:
 si sube por encima del rango de arriba, hay que subir la entrega a 11:00 (o
 `MIN_HOURS_AFTER_CLOSE` a 11) y volver a medir.
