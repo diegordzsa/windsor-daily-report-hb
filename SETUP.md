@@ -215,5 +215,18 @@ reporte. Por eso el aviso por email es obligatorio.
 gh workflow run daily-report.yml -R diegordzsa/windsor-daily-report-hb --ref main
 ```
 
-Publica en Slack si el guard lo permite. Para probar la autenticación del
-cronjob sin duplicar el reporte, usar un workflow probe de solo lectura.
+Publica en Slack si el guard lo permite.
+
+## Validar la autenticación del cronjob sin enviar reporte
+
+`.github/workflows/dispatch-probe.yml` existe solo para eso: mismo token, misma
+URL de dispatches, mismas cabeceras, pero no lee datos ni escribe en Slack (no
+recibe ningún secret).
+
+```
+POST https://api.github.com/repos/diegordzsa/windsor-daily-report-hb/actions/workflows/dispatch-probe.yml/dispatches
+```
+
+Se apunta el cronjob ahí primero, se comprueba que devuelve `204` y que aparece
+la ejecución en Actions, y solo entonces se cambia la URL a `daily-report.yml`.
+Así se valida la autenticación sin mandar un reporte duplicado.

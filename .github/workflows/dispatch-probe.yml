@@ -1,0 +1,27 @@
+name: Dispatch Probe
+
+# Sirve para validar la autenticacion del cronjob de cron-job.org sin enviar un
+# reporte a Slack. Usa el mismo token, la misma URL de dispatches y las mismas
+# cabeceras que el reporte, pero no lee datos ni escribe en ningun sitio.
+#
+#   POST https://api.github.com/repos/diegordzsa/windsor-daily-report-hb/
+#        actions/workflows/dispatch-probe.yml/dispatches
+#
+# Respuesta correcta: 204 No Content.
+# 401 = token mal copiado · 403 = falta Actions: Read and write · 404 = errata.
+#
+# No recibe ningun secret a proposito.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirmar que el dispatch llego
+        run: |
+          echo "Dispatch recibido correctamente."
+          echo "Instante UTC : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Europe/Madrid: $(TZ=Europe/Madrid date +'%Y-%m-%d %H:%M:%S %Z')"
+          echo "Ref          : ${{ github.ref }}"
+          echo "Actor        : ${{ github.actor }}"
