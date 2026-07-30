@@ -7,6 +7,11 @@ name: Daily Report
 # dispatches, configurado en Europe/Madrid. Ver SETUP.md.
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Recorrer todo el camino real pero escribir el reporte en el log en vez de en Slack'
+        type: boolean
+        default: false
 
 jobs:
   report:
@@ -38,4 +43,6 @@ jobs:
           MIN_HOURS_AFTER_CLOSE: '3'
           REPORT_TIME_LABEL: '09:00 Europe/Madrid'
           REPORT_TIMEZONE: 'Europe/Madrid'
+
+          DRY_RUN: ${{ inputs.dry_run }}
         run: node src/report.js

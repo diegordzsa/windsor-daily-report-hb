@@ -19,6 +19,20 @@ if (!SHOPIFY_CLIENT_ID || !SHOPIFY_CLIENT_SECRET || !META_ACCESS_TOKEN || !ANTHR
   process.exit(1);
 }
 
+// Modo de verificacion: recorre el camino real y escribe el reporte en el log
+// en vez de en Slack. Sirve para probar cambios sin publicar.
+const DRY_RUN = process.env.DRY_RUN === 'true' || process.env.DRY_RUN === '1';
+
+async function deliver(text) {
+  if (DRY_RUN) {
+    console.log('\n===== DRY RUN — esto es lo que se habria enviado a Slack =====');
+    console.log(text);
+    console.log('===== fin del DRY RUN =====\n');
+    return;
+  }
+  await sendToSlack(SLACK_WEBHOOK_URL, text);
+}
+
 async function run() {
   // ---------------------------------------------------------------------------
   // GUARD DE FRESCURA. Antes de cualquier fetch de datos.
@@ -30,7 +44,7 @@ async function run() {
     account = await fetchMetaAccount(META_ACCESS_TOKEN);
   } catch (err) {
     console.error(`[Guard] No se pudo leer la cuenta de Meta: ${err.message}`);
-    await sendToSlack(SLACK_WEBHOOK_URL,
+    await deliver(
       `:warning: *${STORE_NAME} — Reporte Diario ABORTADO*\n` +
       `No se pudo leer la configuracion de la cuenta de Meta.\nError: ${err.message}`
     ).catch(() => {});
@@ -59,7 +73,7 @@ async function run() {
       `El dia cerro a las ${closeInstant.toISOString()} — zona de la cuenta: ${accountTz}.\n` +
       `Un gasto subestimado inflaria ROAS y MER, asi que no se publica.`;
     console.error(`[Guard] BLOQUEADO — ${hoursElapsed.toFixed(2)} h < ${MIN_HOURS_AFTER_CLOSE} h`);
-    await sendToSlack(SLACK_WEBHOOK_URL, msg).catch(err =>
+    await deliver(msg).catch(err =>
       console.error(`[Guard] Aviso a Slack fallido: ${err.message}`)
     );
     process.exit(1);
@@ -71,7 +85,7 @@ async function run() {
   // ---------------------------------------------------------------------------
   if (account.currency !== META_CURRENCY) {
     console.error(`[Guard] La cuenta de Meta factura en ${account.currency}, la config dice ${META_CURRENCY}`);
-    await sendToSlack(SLACK_WEBHOOK_URL,
+    await deliver(
       `:no_entry: *${STORE_NAME} — Reporte Diario NO ENVIADO*\n` +
       `La cuenta de Meta cambio de moneda: la API dice *${account.currency}* y la config *${META_CURRENCY}*.\n` +
       `Las conversiones darian cifras falsas. Actualiza \`META_CURRENCY\` antes de volver a ejecutar.`
@@ -89,7 +103,7 @@ async function run() {
 
     if (shop.currency !== STORE_CURRENCY) {
       console.error(`[Guard] Shopify factura en ${shop.currency}, la config dice ${STORE_CURRENCY}`);
-      await sendToSlack(SLACK_WEBHOOK_URL,
+      await deliver(
         `:no_entry: *${STORE_NAME} — Reporte Diario NO ENVIADO*\n` +
         `Shopify cambio de moneda: la API dice *${shop.currency}* y la config *${STORE_CURRENCY}*.\n` +
         `Actualiza \`STORE_CURRENCY\` antes de volver a ejecutar.`
@@ -110,7 +124,7 @@ async function run() {
     ]);
   } catch (err) {
     console.error('API fetch failed:', err.message);
-    await sendToSlack(SLACK_WEBHOOK_URL,
+    await deliver(
       `:warning: *${STORE_NAME} — Reporte Diario FALLIDO*\nNo se pudieron obtener datos.\nError: ${err.message}`
     );
     process.exit(1);
@@ -120,7 +134,7 @@ async function run() {
 
   if (metaData.length === 0 && shopifyData.length === 0) {
     console.warn('Both APIs returned 0 rows — sending warning to Slack');
-    await sendToSlack(SLACK_WEBHOOK_URL,
+    await deliver(
       `:warning: *${STORE_NAME} — Reporte Diario*\n${reportDate}\n\nNo se obtuvieron datos de Meta ni de Shopify. Verifica que los tokens de acceso siguen activos.`
     );
     process.exit(1);
@@ -150,8 +164,8 @@ async function run() {
   });
 
   try {
-    await sendToSlack(SLACK_WEBHOOK_URL, reportText);
-    console.log('Report sent to Slack successfully.');
+    await deliver(reportText);
+    console.log(DRY_RUN ? 'DRY RUN completado: no se envio nada a Slack.' : 'Report sent to Slack successfully.');
   } catch (err) {
     console.error('Failed to send to Slack:', err.message);
     process.exit(1);
