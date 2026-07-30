@@ -36,16 +36,21 @@ METRICAS SHOPIFY (fuente de verdad):
 - 1ª Suscripcion (Appstle): ${metrics.firstSubOrders}
 - Recurrentes (Appstle): ${metrics.recurringOrders}
 
-Identifica en 3-4 lineas:
-1. Cual es el punto mas debil del funnel hoy y por que
-2. Compara el ROAS Meta vs MER-ROAS — si la diferencia es grande, que significa para la atribucion
-3. Una accion concreta que se deberia tomar hoy
+Responde exactamente tres lineas, una por punto, sin numerarlas ni titularlas:
+1. El punto mas debil del funnel hoy y por que.
+2. ROAS Meta vs MER-ROAS: si la diferencia es grande, que significa para la atribucion.
+3. Una accion concreta para hoy.
 
-Responde en espanol, directo, sin introducciones.`;
+Formato obligatorio:
+- Espanol, directo, sin introducciones ni cierres.
+- Maximo 35 palabras por linea.
+- Texto plano. Nada de markdown: ni **negrita**, ni ##, ni vinietas. Esto se
+  publica en Slack, donde ** no es negrita y se ve como asteriscos sueltos.`;
 
   const message = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 300,
+    // Holgado a proposito: con 300 la respuesta se cortaba a media frase.
+    max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   });
 

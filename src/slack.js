@@ -58,13 +58,24 @@ export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz
     `  Compras: ${metrics.metaOrders} (${pct(metrics.purchaseRate)})`,
     ``,
     `:robot_face: *DIAGNOSTICO (Claude)*`,
-    ...diagnosis.split('\n').map(line => `  ${line}`),
+    ...toSlackMrkdwn(diagnosis).split('\n').map(line => `  ${line}`),
     ``,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
     ...footer({ date, hoursElapsed, accountTz, fx }),
   ];
 
   return lines.join('\n');
+}
+
+// Red de seguridad: el prompt pide texto plano, pero si el modelo se cuela con
+// markdown, en Slack `**negrita**` no es negrita y salen asteriscos sueltos.
+function toSlackMrkdwn(text) {
+  return String(text)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '*$1*')   // ***x*** -> *x*
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')       // **x**   -> *x*
+    .replace(/^#{1,6}\s*/gm, '')             // encabezados markdown
+    .replace(/^\s*[-*+]\s+/gm, '• ')         // vinietas
+    .trim();
 }
 
 function footer({ date, hoursElapsed, accountTz, fx }) {
@@ -80,7 +91,7 @@ function footer({ date, hoursElapsed, accountTz, fx }) {
   if (META_CURRENCY !== STORE_CURRENCY) {
     out.push(
       fx?.exact
-        ? `_Meta factura en ${META_CURRENCY}; convertido a ${STORE_CURRENCY} a ${fx.rate} (frankfurter.app)._`
+        ? `_Meta factura en ${META_CURRENCY}; convertido a ${STORE_CURRENCY} a ${num(fx.rate, 5)} (frankfurter.app)._`
         : `_:warning: Tasa ${META_CURRENCY}→${STORE_CURRENCY} no disponible: cifras sin convertir (1:1)._`
     );
   }
