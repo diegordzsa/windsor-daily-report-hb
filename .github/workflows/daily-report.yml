@@ -1,8 +1,11 @@
 name: Daily Report
 
+# Sin `schedule:` a proposito. El cron de GitHub Actions arranca cuando quiere:
+# medido en este repo, entre +1 h 56 y +3 h 34 sobre la hora pedida, con 1 h 38
+# de deriva y sin patron. Para una hora fija no sirve.
+# El disparo lo hace un cronjob externo (cron-job.org) contra la API de
+# dispatches, configurado en Europe/Madrid. Ver SETUP.md.
 on:
-  schedule:
-    - cron: '0 7 * * *' # 7 AM UTC = 9 AM CEST (Madrid) — gives Meta ~9 h to finalize spend
   workflow_dispatch:
 
 jobs:
@@ -26,4 +29,13 @@ jobs:
           META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+          # Valores MEDIDOS contra las APIs el 2026-07-29/30. No copiar de otro repo.
+          META_ACCOUNT_TIMEZONE: 'Europe/Madrid'   # act_2217973965310655 -> timezone_name
+          META_CURRENCY: 'USD'                     # act_2217973965310655 -> currency
+          STORE_CURRENCY: 'EUR'                    # shop.json -> currency
+          STORE_LOCALE: 'es-ES'
+          MIN_HOURS_AFTER_CLOSE: '3'
+          REPORT_TIME_LABEL: '09:00 Europe/Madrid'
+          REPORT_TIMEZONE: 'Europe/Madrid'
         run: node src/report.js

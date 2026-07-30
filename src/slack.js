@@ -1,3 +1,9 @@
+import { money, int, num, pct, ratio } from './format.js';
+import {
+  STORE_NAME, STORE_CURRENCY, META_CURRENCY,
+  STORE_LOCALE, REPORT_TIME_LABEL,
+} from './config.js';
+
 export async function sendToSlack(webhookUrl, reportText) {
   const res = await fetch(webhookUrl, {
     method: 'POST',
@@ -17,47 +23,68 @@ export async function sendToSlack(webhookUrl, reportText) {
   }
 }
 
-export function formatReport({ date, metrics, diagnosis }) {
-  const d = new Date(date);
-  const dateStr = d.toLocaleDateString('es-ES', {
+export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz, fx }) {
+  const dateStr = new Date(`${date}T12:00:00Z`).toLocaleDateString(STORE_LOCALE, {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  return [
-    `:bar_chart: *Hair Biolabs ES — Reporte Diario*`,
+  // El gasto se muestra en la moneda de la tienda con el nativo al lado, para
+  // que la cifra sea comparable con el AOV y trazable contra el panel de Meta.
+  const spendLine = META_CURRENCY === STORE_CURRENCY
+    ? `  Gasto: ${money(metrics.adSpend, STORE_CURRENCY)}`
+    : `  Gasto: ${money(metrics.adSpend, STORE_CURRENCY)} (${money(metrics.adSpendNative, META_CURRENCY)})`;
+
+  const lines = [
+    `:bar_chart: *${STORE_NAME} — Reporte Diario*`,
     dateStr,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
     ``,
     `:moneybag: *REVENUE*`,
-    `  Net Sales (Shopify): €${fmt(metrics.shopifyRevenue)}`,
-    `  Ordenes: ${metrics.shopifyOrders} | AOV: €${fmt(metrics.shopifyAOV)}`,
+    `  Net Sales (Shopify): ${money(metrics.shopifyRevenue, STORE_CURRENCY)}`,
+    `  Ordenes: ${metrics.shopifyOrders} | AOV: ${money(metrics.shopifyAOV, STORE_CURRENCY)}`,
     `  1ª Susc: ${metrics.firstSubOrders} | Recurrentes: ${metrics.recurringOrders}`,
     ``,
     `:loudspeaker: *PAID ADS (Meta)*`,
-    `  Gasto: $${fmt(metrics.adSpend)}${metrics.adSpendEUR ? ` (€${fmt(metrics.adSpendEUR)})` : ''}`,
-    `  ROAS (Meta): ${metrics.metaROAS.toFixed(2)}x | MER: ${metrics.merROAS.toFixed(2)}x`,
-    `  CPO: €${fmt(metrics.cpo)}`,
-    `  Revenue atribuido: €${fmt(metrics.metaAttributedRevenue)}`,
+    spendLine,
+    `  ROAS (Meta): ${ratio(metrics.metaROAS)} | MER: ${ratio(metrics.merROAS)}`,
+    `  CPO: ${money(metrics.cpo, STORE_CURRENCY)}`,
+    `  Revenue atribuido: ${money(metrics.metaAttributedRevenue, STORE_CURRENCY)}`,
     ``,
     `:mag: *FUNNEL*`,
-    `  Impresiones: ${fmtInt(metrics.impressions)}`,
-    `  Link Clicks: ${fmtInt(metrics.linkClicks)} (CTR: ${metrics.ctr.toFixed(1)}%)`,
-    `  Add to Cart: ${metrics.addToCarts} (${metrics.addToCartRate.toFixed(1)}%)`,
-    `  Checkout: ${metrics.checkoutsInitiated} (${metrics.checkoutRate.toFixed(1)}%)`,
-    `  Compras: ${metrics.metaOrders} (${metrics.purchaseRate.toFixed(1)}%)`,
+    `  Impresiones: ${int(metrics.impressions)}`,
+    `  Link Clicks: ${int(metrics.linkClicks)} (CTR: ${pct(metrics.ctr)})`,
+    `  Add to Cart: ${metrics.addToCarts} (${pct(metrics.addToCartRate)})`,
+    `  Checkout: ${metrics.checkoutsInitiated} (${pct(metrics.checkoutRate)})`,
+    `  Compras: ${metrics.metaOrders} (${pct(metrics.purchaseRate)})`,
     ``,
     `:robot_face: *DIAGNOSTICO (Claude)*`,
     ...diagnosis.split('\n').map(line => `  ${line}`),
     ``,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `_Generado automaticamente a las 9:00 AM_`,
-  ].join('\n');
+    ...footer({ date, hoursElapsed, accountTz, fx }),
+  ];
+
+  return lines.join('\n');
 }
 
-function fmt(n) {
-  return n.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+function footer({ date, hoursElapsed, accountTz, fx }) {
+  const out = [];
 
-function fmtInt(n) {
-  return n.toLocaleString('es-ES');
+  if (Number.isFinite(hoursElapsed)) {
+    out.push(
+      `_Gasto de Meta con ${num(hoursElapsed, 1)} h de consolidacion: ` +
+      `el ${date} cerro a las 00:00 ${accountTz}._`
+    );
+  }
+
+  if (META_CURRENCY !== STORE_CURRENCY) {
+    out.push(
+      fx?.exact
+        ? `_Meta factura en ${META_CURRENCY}; convertido a ${STORE_CURRENCY} a ${fx.rate} (frankfurter.app)._`
+        : `_:warning: Tasa ${META_CURRENCY}→${STORE_CURRENCY} no disponible: cifras sin convertir (1:1)._`
+    );
+  }
+
+  out.push(`_Envio programado: ${REPORT_TIME_LABEL}._`);
+  return out;
 }

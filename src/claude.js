@@ -1,28 +1,38 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { money } from './format.js';
+import { STORE_NAME, STORE_CURRENCY, META_CURRENCY } from './config.js';
 
 export async function generateDiagnosis(metrics) {
   const client = new Anthropic();
 
-  const prompt = `Eres un analista de ecommerce DTC. Tienes los siguientes datos de ayer para Hair Biolabs Spain:
+  // Todas las cifras monetarias van en STORE_CURRENCY y con su simbolo correcto.
+  // Etiquetar el gasto nativo de Meta con el simbolo de la tienda le haria
+  // razonar con un gasto inflado por el tipo de cambio.
+  const m = n => money(n, STORE_CURRENCY);
+
+  const prompt = `Eres un analista de ecommerce DTC. Tienes los siguientes datos de ayer para ${STORE_NAME}.
+Todas las cifras monetarias estan en ${STORE_CURRENCY}. La cuenta de Meta factura en ${META_CURRENCY} y ya se han convertido.
 
 METRICAS PAID (Meta Ads):
-- Gasto: €${metrics.adSpend.toFixed(2)}
+- Gasto: ${m(metrics.adSpend)} (${money(metrics.adSpendNative, META_CURRENCY)} nativos)
 - Impresiones: ${metrics.impressions}
 - Link Clicks: ${metrics.linkClicks}
 - Add to Carts: ${metrics.addToCarts}
 - Checkouts Iniciados: ${metrics.checkoutsInitiated}
 - Compras (atribuidas Meta): ${metrics.metaOrders}
+- Revenue atribuido por Meta: ${m(metrics.metaAttributedRevenue)}
 - ROAS Meta (atribuido): ${metrics.metaROAS.toFixed(2)}x
 - MER-ROAS (Shopify revenue / ad spend): ${metrics.merROAS.toFixed(2)}x
+- CPO: ${m(metrics.cpo)}
 - CTR: ${metrics.ctr.toFixed(2)}%
 - Add to Cart Rate: ${metrics.addToCartRate.toFixed(2)}%
 - Checkout Rate: ${metrics.checkoutRate.toFixed(2)}%
 - Purchase Rate: ${metrics.purchaseRate.toFixed(2)}%
 
 METRICAS SHOPIFY (fuente de verdad):
-- Revenue neto: €${metrics.shopifyRevenue.toFixed(2)}
+- Revenue neto: ${m(metrics.shopifyRevenue)}
 - Ordenes reales: ${metrics.shopifyOrders}
-- AOV: €${metrics.shopifyAOV.toFixed(2)}
+- AOV: ${m(metrics.shopifyAOV)}
 - 1ª Suscripcion (Appstle): ${metrics.firstSubOrders}
 - Recurrentes (Appstle): ${metrics.recurringOrders}
 

@@ -1,134 +1,74 @@
-// TEMPORAL — Fase 1 de diagnostico. Solo lee y loguea. NUNCA escribe a Slack.
-// Borrar al terminar la medicion.
+// TEMPORAL — verificacion del guard de frescura contra las APIs reales.
+// Solo lee y loguea. NUNCA escribe a Slack. Borrar al terminar.
 
-const AD_ACCOUNT_ID = '2217973965310655';
-const GRAPH_API_VERSION = 'v21.0';
-const SHOPIFY_STORE = 'ex9fk2-1i.myshopify.com';
-const SHOPIFY_API_VERSION = '2024-10';
+import { fetchMetaAccount } from '../../src/meta.js';
+import { getAccessToken, fetchShopInfo } from '../../src/shopify.js';
+import {
+  yesterdayInTimezone, dayCloseInstant, hoursSinceClose,
+} from '../../src/freshness.js';
+import {
+  META_ACCOUNT_TIMEZONE, MIN_HOURS_AFTER_CLOSE,
+  META_CURRENCY, STORE_CURRENCY,
+} from '../../src/config.js';
 
-const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
-const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
-
-console.log(`[Probe] Ejecutado en UTC: ${new Date().toISOString()}`);
+console.log(`[Probe] Ahora UTC: ${new Date().toISOString()}`);
 console.log('');
 
-// ---------- 1.1 Cuenta de Meta: zona horaria y moneda ----------
-async function metaAccount() {
-  const params = new URLSearchParams({
-    access_token: META_ACCESS_TOKEN,
-    fields: 'name,timezone_name,timezone_offset_hours_utc,currency,account_status,business_country_code',
-  });
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${AD_ACCOUNT_ID}?${params}`;
-  const res = await fetch(url);
-  const json = await res.json();
-  console.log('===== 1.1 META ACCOUNT =====');
-  console.log(JSON.stringify(json, null, 2));
-  console.log('');
-  return json;
+// ---------- Cuenta de Meta ----------
+const account = await fetchMetaAccount(process.env.META_ACCESS_TOKEN);
+console.log(`  config META_CURRENCY=${META_CURRENCY} -> ${account.currency === META_CURRENCY ? 'COINCIDE' : 'DISCREPA'}`);
+console.log(`  config META_ACCOUNT_TIMEZONE=${META_ACCOUNT_TIMEZONE} -> ${account.timezone === META_ACCOUNT_TIMEZONE ? 'COINCIDE' : 'DISCREPA'}`);
+console.log('');
+
+// ---------- Shopify ----------
+const token = await getAccessToken(process.env.SHOPIFY_CLIENT_ID, process.env.SHOPIFY_CLIENT_SECRET);
+const shop = await fetchShopInfo(token);
+console.log(`  config STORE_CURRENCY=${STORE_CURRENCY} -> ${shop.currency === STORE_CURRENCY ? 'COINCIDE' : 'DISCREPA'}`);
+console.log(`  Shopify tz vs Meta tz -> ${shop.timezone === account.timezone ? 'MISMA ZONA' : 'ZONAS DISTINTAS'}`);
+console.log('');
+
+// ---------- Decision del guard AHORA ----------
+const tz = account.timezone || META_ACCOUNT_TIMEZONE;
+const reportDate = yesterdayInTimezone(tz);
+const close = dayCloseInstant(reportDate, tz);
+const elapsed = hoursSinceClose(reportDate, tz);
+
+console.log('===== DECISION DEL GUARD (ahora) =====');
+console.log(`  dia del reporte : ${reportDate} (${tz})`);
+console.log(`  cierre del dia  : ${close.toISOString()}`);
+console.log(`  h post-cierre   : ${elapsed.toFixed(2)}  (minimo ${MIN_HOURS_AFTER_CLOSE})`);
+console.log(`  veredicto       : ${elapsed < MIN_HOURS_AFTER_CLOSE ? 'BLOQUEA (exit 1)' : 'PUBLICA'}`);
+console.log('');
+
+// ---------- Decision del guard a la hora de entrega, todo el anio ----------
+console.log('===== DECISION DEL GUARD A LAS 09:00 Europe/Madrid =====');
+for (const [etiqueta, iso] of [
+  ['verano  (28-jul)', '2026-07-29T07:00:00Z'],
+  ['invierno (15-ene)', '2026-01-16T08:00:00Z'],
+  ['salto primavera (29-mar)', '2026-03-30T07:00:00Z'],
+  ['salto otonio (25-oct)', '2026-10-26T08:00:00Z'],
+]) {
+  const at = new Date(iso);
+  const d = yesterdayInTimezone(tz, at);
+  const h = hoursSinceClose(d, tz, at);
+  console.log(`  ${etiqueta.padEnd(26)} dia=${d}  h=${h.toFixed(2)}  ${h < MIN_HOURS_AFTER_CLOSE ? 'BLOQUEA' : 'PUBLICA'}`);
 }
+console.log('');
 
-// ---------- 1.2 Shopify: zona horaria y moneda ----------
-async function shopifyShop() {
-  const tokRes = await fetch(`https://${SHOPIFY_STORE}/admin/oauth/access_token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: SHOPIFY_CLIENT_SECRET,
-      grant_type: 'client_credentials',
-    }),
-  });
-  if (!tokRes.ok) {
-    console.log('===== 1.2 SHOPIFY SHOP =====');
-    console.log(`ERROR token: ${tokRes.status} ${await tokRes.text()}`);
-    return null;
-  }
-  const { access_token } = await tokRes.json();
-
-  const res = await fetch(
-    `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
-    { headers: { 'X-Shopify-Access-Token': access_token } }
-  );
-  const json = await res.json();
-  const s = json.shop || {};
-  console.log('===== 1.2 SHOPIFY SHOP =====');
-  console.log(JSON.stringify({
-    name: s.name,
-    domain: s.domain,
-    myshopify_domain: s.myshopify_domain,
-    iana_timezone: s.iana_timezone,
-    timezone: s.timezone,
-    currency: s.currency,
-    money_format: s.money_format,
-    money_with_currency_format: s.money_with_currency_format,
-    country_code: s.country_code,
-    primary_locale: s.primary_locale,
-    weight_unit: s.weight_unit,
-  }, null, 2));
-  console.log('');
-  return s;
+// ---------- Deriva: reportado a 9 h frente a consolidado ----------
+console.log('===== CONSOLIDADO ULTIMOS 10 DIAS =====');
+const params = new URLSearchParams({
+  access_token: process.env.META_ACCESS_TOKEN,
+  time_range: JSON.stringify({
+    since: yesterdayInTimezone(tz, new Date(Date.now() - 9 * 86400000)),
+    until: reportDate,
+  }),
+  time_increment: '1',
+  level: 'account',
+  fields: 'spend,impressions,clicks,account_currency',
+});
+const res = await fetch(`https://graph.facebook.com/v21.0/act_2217973965310655/insights?${params}`);
+const json = await res.json();
+for (const row of json.data || []) {
+  console.log(`  CONSOLIDADO ${row.date_start} | spend=${row.spend} ${row.account_currency}`);
 }
-
-// ---------- 1.4 Deriva de consolidacion: gasto consolidado ultimos 8 dias ----------
-async function metaConsolidated(accountTz) {
-  // Calcula "hoy" en la zona de la cuenta de Meta, no en UTC.
-  const tz = accountTz || 'UTC';
-  const fmt = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
-  });
-  const todayInTz = fmt.format(new Date()); // YYYY-MM-DD
-  const d = new Date(`${todayInTz}T00:00:00Z`);
-
-  const until = new Date(d); until.setUTCDate(until.getUTCDate() - 1);
-  const since = new Date(d); since.setUTCDate(since.getUTCDate() - 26);
-  const iso = x => x.toISOString().slice(0, 10);
-
-  console.log('===== 1.4 META CONSOLIDATED SPEND =====');
-  console.log(`Zona de la cuenta: ${tz} | hoy en esa zona: ${todayInTz}`);
-  console.log(`Rango: ${iso(since)} .. ${iso(until)}`);
-
-  const params = new URLSearchParams({
-    access_token: META_ACCESS_TOKEN,
-    time_range: JSON.stringify({ since: iso(since), until: iso(until) }),
-    time_increment: '1',
-    level: 'account',
-    fields: 'spend,impressions,clicks,account_currency',
-  });
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${AD_ACCOUNT_ID}/insights?${params}`;
-  const res = await fetch(url);
-  const json = await res.json();
-
-  if (json.error) {
-    console.log(`ERROR: ${JSON.stringify(json.error)}`);
-    return;
-  }
-  for (const row of json.data || []) {
-    console.log(
-      `CONSOLIDADO ${row.date_start} | spend=${row.spend} ${row.account_currency || ''} ` +
-      `| impressions=${row.impressions} | clicks=${row.clicks}`
-    );
-  }
-  console.log('');
-}
-
-// ---------- Extra: que devuelve date_preset=yesterday AHORA MISMO ----------
-async function metaYesterdayNow() {
-  const params = new URLSearchParams({
-    access_token: META_ACCESS_TOKEN,
-    date_preset: 'yesterday',
-    level: 'account',
-    fields: 'spend,impressions,clicks,account_currency',
-  });
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/act_${AD_ACCOUNT_ID}/insights?${params}`;
-  const res = await fetch(url);
-  const json = await res.json();
-  console.log('===== EXTRA: date_preset=yesterday AHORA =====');
-  console.log(JSON.stringify(json.data || json, null, 2));
-  console.log('');
-}
-
-const acct = await metaAccount();
-await shopifyShop();
-await metaConsolidated(acct?.timezone_name);
-await metaYesterdayNow();
