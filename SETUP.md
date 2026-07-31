@@ -205,13 +205,19 @@ entonces**.
 | 2026-07-22 | 72 | 0 | 22 | 14 |
 | 2026-07-21 | 74 | 0 | 18 | 12 |
 
-**Validación.** Contrastar un día contra la página de eventos de Kaching antes
-de fiarse. Hay que ampliar la altura del iframe o solo se ven 5 filas:
+**Validación — hecha.** El **2026-07-30** el filtro da **19** y la página de
+eventos de Kaching da 19. Contrastado a mano, cuadra exacto.
+
+Para repetirlo con otro día, hay que ampliar la altura del iframe o solo se ven
+5 filas:
 
 ```
 /apps/kaching-subscriptions/app/subscriptions/events?savedView=Billing
   &eventType=BILLING_ATTEMPT_SUCCESS&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
 ```
+
+Merece la pena rehacer el contraste si Kaching cambia de versión o si aparece
+otra app que también etiquete pedidos con `Kaching Subscription`.
 
 **Limitación conocida.** Los dos días de cambio de horario (29-mar y 25-oct)
 duran 23 h y 25 h, pero la ventana usa un solo desplazamiento en los dos
