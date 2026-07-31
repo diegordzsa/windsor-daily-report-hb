@@ -43,6 +43,7 @@ jobs:
           MIN_HOURS_AFTER_CLOSE: '3'
           REPORT_TIME_LABEL: '09:00 Europe/Madrid'
           REPORT_TIMEZONE: 'Europe/Madrid'
+          SUBSCRIPTION_TIMEZONE: 'Europe/Madrid'  # dia natural de los cobros
 
           DRY_RUN: ${{ inputs.dry_run }}
         run: node src/report.js

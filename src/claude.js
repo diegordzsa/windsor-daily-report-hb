@@ -33,8 +33,8 @@ METRICAS SHOPIFY (fuente de verdad):
 - Revenue neto: ${m(metrics.shopifyRevenue)}
 - Ordenes reales: ${metrics.shopifyOrders}
 - AOV: ${m(metrics.shopifyAOV)}
-- 1ª Suscripcion (Appstle): ${metrics.firstSubOrders}
-- Recurrentes (Appstle): ${metrics.recurringOrders}
+- 1ª Suscripcion (altas con tag Kaching First Order): ${metrics.firstSubOrders}
+- Recurrentes (cobros automaticos de suscripcion con exito): ${metrics.recurringOrders}
 
 Responde exactamente tres lineas, una por punto, sin numerarlas ni titularlas:
 1. El punto mas debil del funnel hoy y por que.

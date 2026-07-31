@@ -41,6 +41,21 @@ function tzOffsetMinutes(timeZone, date) {
   return (asIfUtc - date.getTime()) / 60000;
 }
 
+// Desplazamiento real de `timeZone` respecto a UTC el dia `dateStr`, como
+// '+HH:MM'. Sirve para construir una ventana de dia que la API entienda sin
+// ambiguedad.
+//
+// El sondeo es a las 12:00 UTC a proposito: los cambios de horario ocurren de
+// madrugada, asi que a mediodia nunca se cae del lado equivocado de la
+// transicion. Sondear a las 00:00 daria el desplazamiento anterior al cambio y
+// la ventana quedaria desplazada una hora en marzo y en octubre.
+export function utcOffsetLabel(dateStr, timeZone) {
+  const mins = tzOffsetMinutes(timeZone, new Date(`${dateStr}T12:00:00Z`));
+  const abs = Math.abs(mins);
+  return (mins < 0 ? '-' : '+') +
+    `${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
 // Instante UTC correspondiente a las 00:00:00 de `dateStr` en `timeZone`.
 // Dos pasadas: la primera estimacion puede caer al otro lado de un cambio de
 // horario, la segunda lo corrige.

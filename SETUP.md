@@ -148,6 +148,80 @@ En `src/report.js`, **antes de cualquier fetch de datos**:
 invierno, los dos saltos de horario de 2026 (29-mar y 25-oct, incluyendo que
 esos días duran 23 h y 25 h), fin de mes, fin de año y 29 de febrero.
 
+## Cómo se cuenta «Recurrentes»
+
+La línea `Recurrentes` del bloque REVENUE es **el número de cobros automáticos
+de suscripción con éxito de ese día**. Nada más: ni altas, ni pedidos con
+producto de suscripción dentro.
+
+**Fuente.** REST Admin API, `GET /admin/api/{version}/orders.json`, paginando
+por el header `Link rel="next"` hasta agotarlo. Campos:
+`id,name,created_at,tags,total_price,checkout_id`.
+
+**Ventana del día.** Europe/Madrid (`SUBSCRIPTION_TIMEZONE`), de `00:00:00` a
+`23:59:59`, con el desplazamiento UTC real de ese día escrito explícitamente en
+la query (`+01:00` invierno, `+02:00` verano). El desplazamiento se obtiene
+sondeando las **12:00 UTC** de ese día: los cambios de horario ocurren de
+madrugada, así que a mediodía nunca se cae del lado equivocado de la
+transición. No se usa la zona por defecto del runtime — Actions corre en UTC y
+en verano eso movería dos horas de cobros al día siguiente.
+
+**Filtro.** Las dos condiciones a la vez:
+
+1. `tags` contiene `Kaching Subscription` (subcadena, sin distinguir mayúsculas)
+2. `checkout_id` es `null` o no viene
+
+La segunda es el truco entero. Un intento de cobro con éxito siempre crea
+pedido, y Shopify lo crea **sin sesión de checkout** porque nadie pasó por la
+caja. Toda compra de escaparate lleva `checkout_id`. Y como un intento fallido
+no llega a crear pedido, lo que pasa el filtro ya es un éxito: no hay que mirar
+`financial_status` ni `cancelled_at`.
+
+**Lo que no funciona, y por qué:**
+
+| Criterio | Por qué no |
+|---|---|
+| Solo el tag `Recurring Order` | Deja fuera las primeras cuotas cobradas automáticamente, que también son cobros con éxito. El 2026-07-27 contaba **11** donde había **17** |
+| Todos los `First Order` | La mayoría entró por checkout: son altas, no cobros automáticos |
+| `financial_status` / `cancelled_at` | Ruido: el filtro ya solo deja éxitos |
+| GraphQL `subscriptionBillingAttempts` | Pide `read_own_subscription_contracts`, que solo expone los contratos creados por la propia app. Una app a medida recibe **0 filas y ningún error** |
+| Leer la UI de Kaching | Es un iframe con scroll propio y paginación engañosa |
+
+**Medición del 2026-07-31** (10 días, datos reales). La columna «antes» es el
+tag de Appstle que quedó en el código tras migrar a Kaching el 9-jun: la app ya
+no existía en la tienda, así que `Recurrentes` publicó **0 todos los días desde
+entonces**.
+
+| Día | Pedidos | Antes | Ahora | Solo tag `Recurring Order` |
+|---|---|---|---|---|
+| 2026-07-30 | 75 | 0 | 19 | 8 |
+| 2026-07-29 | 97 | 0 | 15 | 10 |
+| 2026-07-28 | 90 | 0 | 19 | 12 |
+| 2026-07-27 | 83 | 0 | 17 | 11 |
+| 2026-07-26 | 55 | 0 | 16 | 15 |
+| 2026-07-25 | 55 | 0 | 10 | 9 |
+| 2026-07-24 | 51 | 0 | 14 | 10 |
+| 2026-07-23 | 48 | 0 | 10 | 6 |
+| 2026-07-22 | 72 | 0 | 22 | 14 |
+| 2026-07-21 | 74 | 0 | 18 | 12 |
+
+**Validación.** Contrastar un día contra la página de eventos de Kaching antes
+de fiarse. Hay que ampliar la altura del iframe o solo se ven 5 filas:
+
+```
+/apps/kaching-subscriptions/app/subscriptions/events?savedView=Billing
+  &eventType=BILLING_ATTEMPT_SUCCESS&dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD
+```
+
+**Limitación conocida.** Los dos días de cambio de horario (29-mar y 25-oct)
+duran 23 h y 25 h, pero la ventana usa un solo desplazamiento en los dos
+extremos. El 29-mar entra de más la última hora del día anterior; el 25-oct se
+queda fuera la primera hora del día. Es consecuencia directa de sondear a
+mediodía, que es lo que evita el error mucho peor de partir la ventana por la
+mitad de la transición. Los cobros salen en tanda a hora fija, así que en la
+práctica no cae nada en esa hora — pero conviene no comparar a ciegas esos dos
+días contra Kaching.
+
 ## Variables de entorno
 
 Definidas en `.github/workflows/daily-report.yml`. Valores **medidos**, no
@@ -162,6 +236,7 @@ copiados de otro repo.
 | `MIN_HOURS_AFTER_CLOSE` | `3` | por defecto |
 | `REPORT_TIME_LABEL` | `09:00 Europe/Madrid` | decidido en Fase 2 |
 | `REPORT_TIMEZONE` | `Europe/Madrid` | zona del lector |
+| `SUBSCRIPTION_TIMEZONE` | `Europe/Madrid` | zona del día de cobros |
 
 ## Secrets de GitHub
 

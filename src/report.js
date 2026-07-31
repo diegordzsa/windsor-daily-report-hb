@@ -1,4 +1,6 @@
-import { fetchShopifyOrders, getAccessToken, fetchShopInfo } from './shopify.js';
+import {
+  fetchShopifyOrders, fetchSubscriptionChargeOrders, getAccessToken, fetchShopInfo,
+} from './shopify.js';
 import { fetchMetaAds, fetchMetaAccount } from './meta.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
@@ -93,7 +95,7 @@ async function run() {
     process.exit(1);
   }
 
-  let metaData, shopifyData;
+  let metaData, shopifyData, subscriptionCharges;
 
   try {
     const shopifyToken = await getAccessToken(SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET);
@@ -118,9 +120,13 @@ async function run() {
       );
     }
 
-    [metaData, shopifyData] = await Promise.all([
+    // Los cobros de suscripcion se piden aparte: llevan su propia ventana de dia
+    // (Europe/Madrid con desplazamiento explicito) y necesitan checkout_id, que
+    // la consulta de ventas no trae.
+    [metaData, shopifyData, subscriptionCharges] = await Promise.all([
       fetchMetaAds(META_ACCESS_TOKEN, reportDate),
       fetchShopifyOrders(shopifyToken, reportDate),
+      fetchSubscriptionChargeOrders(shopifyToken, reportDate),
     ]);
   } catch (err) {
     console.error('API fetch failed:', err.message);
@@ -143,7 +149,7 @@ async function run() {
   // Meta gasta en META_CURRENCY, la tienda factura en STORE_CURRENCY.
   const fx = await fetchFxRate(META_CURRENCY, STORE_CURRENCY);
 
-  const metrics = calculateMetrics(metaData, shopifyData, fx.rate);
+  const metrics = calculateMetrics(metaData, shopifyData, fx.rate, subscriptionCharges);
   console.log(`[Debug] Orders: ${metrics.shopifyOrders}, Net Sales: ${metrics.shopifyRevenue.toFixed(2)}, 1st Sub: ${metrics.firstSubOrders}, Recurring: ${metrics.recurringOrders}`);
 
   let diagnosis;
@@ -196,7 +202,7 @@ function hasTag(row, tag) {
   return tags.includes(tag);
 }
 
-function calculateMetrics(metaRows, shopifyRows, fxRate) {
+function calculateMetrics(metaRows, shopifyRows, fxRate, subscriptionCharges = []) {
   // --- Cifras nativas de Meta, en META_CURRENCY ---
   const adSpendNative = sum(metaRows, 'spend');
   const metaAttributedRevenueNative = sum(metaRows, 'action_values_offsite_conversion_fb_pixel_purchase');
@@ -228,7 +234,10 @@ function calculateMetrics(metaRows, shopifyRows, fxRate) {
 
   const orderRows = shopifyRows.filter(r => Number(r.order_count) > 0);
   const firstSubOrders = orderRows.filter(r => hasTag(r, 'Kaching Subscription First Order')).length;
-  const recurringOrders = orderRows.filter(r => hasTag(r, 'appstle_subscription_recurring_order')).length;
+
+  // Cobros automaticos de suscripcion con exito. Ya vienen filtrados desde
+  // shopify.js, donde vive el criterio: aqui solo se cuentan.
+  const recurringOrders = subscriptionCharges.length;
 
   return {
     adSpendNative, metaAttributedRevenueNative,

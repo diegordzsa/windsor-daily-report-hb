@@ -23,6 +23,11 @@ export const STORE_LOCALE = process.env.STORE_LOCALE || 'es-ES';
 // timezone_name de la API en cada ejecucion.
 export const META_ACCOUNT_TIMEZONE = process.env.META_ACCOUNT_TIMEZONE || 'Europe/Madrid';
 
+// Zona en la que se delimita el dia de los cobros de suscripcion. Es la zona
+// del negocio, no la del runner: GitHub Actions corre en UTC y en verano eso
+// moveria dos horas de cobros al dia siguiente.
+export const SUBSCRIPTION_TIMEZONE = process.env.SUBSCRIPTION_TIMEZONE || 'Europe/Madrid';
+
 // Horas minimas tras el cierre del dia antes de publicar. Por debajo de esto el
 // gasto de Meta no esta consolidado y el reporte NO sale.
 export const MIN_HOURS_AFTER_CLOSE = Number(process.env.MIN_HOURS_AFTER_CLOSE ?? 3);
