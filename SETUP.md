@@ -22,6 +22,57 @@ las 7 ejecuciones que hubo con `cron: '0 7 * * *'`:
 **1 h 38 min de deriva, sin patrón.** Para una hora de entrega fija no sirve.
 El workflow deja solo `workflow_dispatch:` y lo dispara un cronjob externo.
 
+## Cuentas publicitarias de Meta
+
+El gasto del reporte es la **suma de todas las cuentas** listadas en
+`META_AD_ACCOUNTS` (`src/config.js`), y sale desglosado por cuenta antes del
+total. La etiqueta de cada línea es el `name` que devuelve la API, así que
+renombrar en Meta cambia el reporte sin tocar código.
+
+| Cuenta | `name` | Añadida | Moneda | Zona |
+|---|---|---|---|---|
+| `act_2217973965310655` | `HAIR_BIO_01` | inicial | USD | Europe/Madrid |
+| `act_3274402022747854` | `hair 2` | 2026-08-06 | USD | Europe/Madrid |
+
+Dos guards nuevos, ambos abortan sin publicar:
+
+- **Moneda por cuenta.** Los gastos nativos se suman *antes* de convertir a
+  `STORE_CURRENCY`, así que una cuenta en otra divisa contaminaría el total. Si
+  alguna no factura en `META_CURRENCY`, no sale reporte.
+- **Zona horaria compartida.** El día del reporte se calcula con una sola zona
+  (la de la primera cuenta). Si las cuentas cierran a horas distintas, la ventana
+  es incorrecta para al menos una y el guard de frescura deja de significar lo
+  que dice.
+
+Una cuenta **pausada** no rompe nada: la API devuelve 0 filas y la cuenta aparece
+en el desglose con `0,00`. Una cuenta que **falla** sí aborta el reporte entero —
+un gasto parcial infla ROAS y MER, que es justo lo que el guard de frescura
+existe para impedir.
+
+La línea de auditoría del log lleva el id de la cuenta:
+
+```
+[Meta] Raw spend for 2026-08-05 (act_2217973965310655): 2475.23 USD
+```
+
+Sin el id las cuentas serían indistinguibles en el log, que es la única traza
+histórica de gasto que existe (no hay persistencia).
+
+### Discontinuidad de serie al añadir una cuenta
+
+Desde la primera ejecución con dos cuentas el gasto sube y por tanto **ROAS, MER
+y CPO bajan** respecto a los días anteriores. Es un cambio de **cobertura**, no
+de rendimiento. Los números de antes del 2026-08-06 no son comparables con los de
+después.
+
+### Añadir otra cuenta más
+
+1. Medirla con un probe de solo lectura (`name`, `timezone_name`, `currency`).
+2. Añadir el id a `META_AD_ACCOUNTS` y anotar los valores medidos en la tabla de
+   arriba y en la cabecera de `src/config.js`.
+3. Ejecutar el workflow con `dry_run: true` y comprobar que el total cuadra con
+   la suma de las líneas del desglose.
+
 ## Zonas horarias y monedas (MEDIDAS, no supuestas)
 
 Medido el 2026-07-29/30 con un workflow temporal de solo lectura.
@@ -36,6 +87,22 @@ Medido el 2026-07-29/30 con un workflow temporal de solo lectura.
   "currency": "USD"
 }
 ```
+
+Medido el 2026-08-06 con el mismo método, workflow temporal de solo lectura.
+
+`GET /v21.0/act_3274402022747854?fields=name,timezone_name,timezone_offset_hours_utc,currency`
+
+```json
+{
+  "name": "hair 2",
+  "timezone_name": "Europe/Madrid",
+  "timezone_offset_hours_utc": 2,
+  "currency": "USD"
+}
+```
+
+Las dos cuentas coinciden en moneda y zona, así que sus gastos nativos se pueden
+sumar y el día cierra a la misma hora para ambas.
 
 `GET /admin/api/2024-10/shop.json`
 
@@ -60,7 +127,8 @@ cifras falsas. Hay que actualizar `META_CURRENCY` / `STORE_CURRENCY`.
 
 La zona de la cuenta de Meta (`timezone_name`) es la que manda: define cuándo
 cierra el día para Meta y por tanto la hora más temprana a la que puede existir
-un reporte fiable.
+un reporte fiable. Con varias cuentas se usa la de la primera de
+`META_AD_ACCOUNTS`, y el guard exige que todas coincidan.
 
 | | |
 |---|---|

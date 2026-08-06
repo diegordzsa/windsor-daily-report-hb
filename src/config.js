@@ -1,15 +1,23 @@
 // Configuracion por tienda. Los valores de zona horaria y moneda estan MEDIDOS
 // contra las APIs de Meta y Shopify (ver SETUP.md), no copiados de otro repo.
 //
-//   Cuenta Meta  HAIR_BIO_01  timezone_name=Europe/Madrid  currency=USD
-//   Shopify      Hair Biolabs iana_timezone=Europe/Madrid  currency=EUR
+//   Cuenta Meta  act_2217973965310655  timezone_name=Europe/Madrid  currency=USD
+//   Cuenta Meta  act_3274402022747854  timezone_name=Europe/Madrid  currency=USD
+//   Shopify      Hair Biolabs          iana_timezone=Europe/Madrid  currency=EUR
 
 export const STORE_NAME = 'Hair Biolabs ES';
 
 export const SHOPIFY_STORE = 'ex9fk2-1i.myshopify.com';
 export const SHOPIFY_API_VERSION = '2024-10';
 
-export const META_AD_ACCOUNT_ID = '2217973965310655';
+// Cuentas publicitarias que gastan para esta tienda. El gasto del reporte es la
+// suma de todas y el desglose sale por cuenta, etiquetado con el `name` que
+// devuelve la API. El orden de esta lista es el orden del desglose en Slack.
+//
+// Todas deben facturar en META_CURRENCY y compartir zona horaria: report.js
+// aborta si no, porque sumar gastos en monedas distintas da una cifra falsa y
+// dias que cierran a horas distintas invalidan el guard de frescura.
+export const META_AD_ACCOUNTS = ['2217973965310655', '3274402022747854'];
 export const GRAPH_API_VERSION = 'v21.0';
 
 // Moneda en la que Shopify factura. Meta gasta en otra: no son intercambiables.

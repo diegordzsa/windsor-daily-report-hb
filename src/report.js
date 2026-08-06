@@ -1,7 +1,7 @@
 import {
   fetchShopifyOrders, fetchSubscriptionChargeOrders, getAccessToken, fetchShopInfo,
 } from './shopify.js';
-import { fetchMetaAds, fetchMetaAccount } from './meta.js';
+import { fetchAllMetaAds, fetchAllMetaAccounts } from './meta.js';
 import { generateDiagnosis } from './claude.js';
 import { sendToSlack, formatReport } from './slack.js';
 import { hoursSinceClose, yesterdayInTimezone, dayCloseInstant } from './freshness.js';
@@ -41,21 +41,38 @@ async function run() {
   // Un gasto de Meta sin consolidar infla ROAS y MER: antes no publicar que
   // publicar mal.
   // ---------------------------------------------------------------------------
-  let account;
+  let accounts;
   try {
-    account = await fetchMetaAccount(META_ACCESS_TOKEN);
+    accounts = await fetchAllMetaAccounts(META_ACCESS_TOKEN);
   } catch (err) {
-    console.error(`[Guard] No se pudo leer la cuenta de Meta: ${err.message}`);
+    console.error(`[Guard] No se pudo leer alguna cuenta de Meta: ${err.message}`);
     await deliver(
       `:warning: *${STORE_NAME} — Reporte Diario ABORTADO*\n` +
-      `No se pudo leer la configuracion de la cuenta de Meta.\nError: ${err.message}`
+      `No se pudo leer la configuracion de las cuentas de Meta.\nError: ${err.message}\n` +
+      `Con una cuenta fuera el gasto seria parcial y ROAS y MER saldrian inflados.`
     ).catch(() => {});
     process.exit(1);
   }
 
-  const accountTz = account.timezone || META_ACCOUNT_TIMEZONE;
-  if (!account.timezone) {
+  const accountTz = accounts[0].timezone || META_ACCOUNT_TIMEZONE;
+  if (!accounts[0].timezone) {
     console.warn(`[Guard] La API no devolvio timezone_name; usando fallback ${META_ACCOUNT_TIMEZONE}`);
+  }
+
+  // El dia del reporte se calcula con UNA zona. Si las cuentas cierran a horas
+  // distintas, la ventana es incorrecta para al menos una y el guard de frescura
+  // deja de significar lo que dice.
+  const tzMismatch = accounts.filter(a => a.timezone && a.timezone !== accountTz);
+  if (tzMismatch.length > 0) {
+    const detalle = accounts.map(a => `act_${a.id} (${a.timezone})`).join(', ');
+    console.error(`[Guard] Las cuentas de Meta no comparten zona horaria: ${detalle}`);
+    await deliver(
+      `:no_entry: *${STORE_NAME} — Reporte Diario NO ENVIADO*\n` +
+      `Las cuentas de Meta no comparten zona horaria: ${detalle}.\n` +
+      `Sus dias cierran a horas distintas, asi que sumar su gasto en una sola ventana ` +
+      `daria una cifra falsa.`
+    ).catch(() => {});
+    process.exit(1);
   }
 
   const reportDate = yesterdayInTimezone(accountTz);
@@ -85,12 +102,17 @@ async function run() {
   // Verificacion de moneda: si Shopify o Meta cambian de divisa, las
   // conversiones dejan de ser validas sin fallar. Mejor enterarse.
   // ---------------------------------------------------------------------------
-  if (account.currency !== META_CURRENCY) {
-    console.error(`[Guard] La cuenta de Meta factura en ${account.currency}, la config dice ${META_CURRENCY}`);
+  // Todas las cuentas deben facturar en la misma moneda: el gasto nativo se suma
+  // antes de convertir, asi que una cuenta en otra divisa contaminaria el total.
+  const currencyMismatch = accounts.filter(a => a.currency !== META_CURRENCY);
+  if (currencyMismatch.length > 0) {
+    const detalle = currencyMismatch.map(a => `act_${a.id} (${a.currency})`).join(', ');
+    console.error(`[Guard] Cuentas de Meta fuera de ${META_CURRENCY}: ${detalle}`);
     await deliver(
       `:no_entry: *${STORE_NAME} — Reporte Diario NO ENVIADO*\n` +
-      `La cuenta de Meta cambio de moneda: la API dice *${account.currency}* y la config *${META_CURRENCY}*.\n` +
-      `Las conversiones darian cifras falsas. Actualiza \`META_CURRENCY\` antes de volver a ejecutar.`
+      `Estas cuentas de Meta no facturan en *${META_CURRENCY}*: ${detalle}.\n` +
+      `Sumar gastos en monedas distintas daria cifras falsas. Revisa \`META_CURRENCY\` ` +
+      `y \`META_AD_ACCOUNTS\` antes de volver a ejecutar.`
     ).catch(() => {});
     process.exit(1);
   }
@@ -124,7 +146,7 @@ async function run() {
     // (Europe/Madrid con desplazamiento explicito) y necesitan checkout_id, que
     // la consulta de ventas no trae.
     [metaData, shopifyData, subscriptionCharges] = await Promise.all([
-      fetchMetaAds(META_ACCESS_TOKEN, reportDate),
+      fetchAllMetaAds(META_ACCESS_TOKEN, reportDate),
       fetchShopifyOrders(shopifyToken, reportDate),
       fetchSubscriptionChargeOrders(shopifyToken, reportDate),
     ]);
@@ -149,7 +171,7 @@ async function run() {
   // Meta gasta en META_CURRENCY, la tienda factura en STORE_CURRENCY.
   const fx = await fetchFxRate(META_CURRENCY, STORE_CURRENCY);
 
-  const metrics = calculateMetrics(metaData, shopifyData, fx.rate, subscriptionCharges);
+  const metrics = calculateMetrics(metaData, shopifyData, fx.rate, subscriptionCharges, accounts);
   console.log(`[Debug] Orders: ${metrics.shopifyOrders}, Net Sales: ${metrics.shopifyRevenue.toFixed(2)}, 1st Sub: ${metrics.firstSubOrders}, Recurring: ${metrics.recurringOrders}`);
 
   let diagnosis;
@@ -202,8 +224,10 @@ function hasTag(row, tag) {
   return tags.includes(tag);
 }
 
-function calculateMetrics(metaRows, shopifyRows, fxRate, subscriptionCharges = []) {
+function calculateMetrics(metaRows, shopifyRows, fxRate, subscriptionCharges = [], accounts = []) {
   // --- Cifras nativas de Meta, en META_CURRENCY ---
+  // metaRows trae las filas de todas las cuentas concatenadas, asi que cada sum()
+  // de aqui abajo ya es el agregado de la tienda entera.
   const adSpendNative = sum(metaRows, 'spend');
   const metaAttributedRevenueNative = sum(metaRows, 'action_values_offsite_conversion_fb_pixel_purchase');
 
@@ -239,6 +263,24 @@ function calculateMetrics(metaRows, shopifyRows, fxRate, subscriptionCharges = [
   // shopify.js, donde vive el criterio: aqui solo se cuentan.
   const recurringOrders = subscriptionCharges.length;
 
+  // Desglose por cuenta. Los totales de arriba ya suman todas las filas; esto
+  // solo las reparte. Una cuenta pausada no devuelve filas y sale a 0, que es la
+  // lectura correcta: existe y no gasto.
+  //
+  // Para anadir ROAS por cuenta en el futuro: sumar aqui
+  // 'action_values_offsite_conversion_fb_pixel_purchase' de `rows` y dividirlo
+  // por spendNative. Ratio nativo/nativo, el tipo de cambio no le afecta.
+  const perAccount = accounts.map(acc => {
+    const rows = metaRows.filter(r => r.accountId === acc.id);
+    const spendNative = sum(rows, 'spend');
+    return {
+      id: acc.id,
+      label: acc.name || `act_${acc.id}`,
+      spendNative,
+      spend: spendNative * fxRate,
+    };
+  });
+
   return {
     adSpendNative, metaAttributedRevenueNative,
     adSpend, metaAttributedRevenue, cpo,
@@ -246,6 +288,7 @@ function calculateMetrics(metaRows, shopifyRows, fxRate, subscriptionCharges = [
     metaROAS, merROAS, ctr, addToCartRate, checkoutRate, purchaseRate,
     shopifyRevenue, shopifyOrders, shopifyAOV,
     firstSubOrders, recurringOrders,
+    perAccount,
   };
 }
 

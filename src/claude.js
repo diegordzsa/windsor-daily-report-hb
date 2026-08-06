@@ -10,11 +10,18 @@ export async function generateDiagnosis(metrics) {
   // razonar con un gasto inflado por el tipo de cambio.
   const m = n => money(n, STORE_CURRENCY);
 
+  // Con varias cuentas hay que decirselo: si no, razona como si el gasto viniera
+  // de una sola y propone acciones que no encajan con como esta repartido.
+  const accounts = metrics.perAccount ?? [];
+  const breakdownLine = accounts.length > 1
+    ? `\n- Desglose del gasto por cuenta: ${accounts.map(a => `${a.label} ${m(a.spend)}`).join(' · ')}`
+    : '';
+
   const prompt = `Eres un analista de ecommerce DTC. Tienes los siguientes datos de ayer para ${STORE_NAME}.
-Todas las cifras monetarias estan en ${STORE_CURRENCY}. La cuenta de Meta factura en ${META_CURRENCY} y ya se han convertido.
+Todas las cifras monetarias estan en ${STORE_CURRENCY}. Las cuentas de Meta facturan en ${META_CURRENCY} y ya se han convertido.
 
 METRICAS PAID (Meta Ads):
-- Gasto: ${m(metrics.adSpend)} (${money(metrics.adSpendNative, META_CURRENCY)} nativos)
+- Gasto: ${m(metrics.adSpend)} (${money(metrics.adSpendNative, META_CURRENCY)} nativos)${breakdownLine}
 - Impresiones: ${metrics.impressions}
 - Link Clicks: ${metrics.linkClicks}
 - Add to Carts: ${metrics.addToCarts}
