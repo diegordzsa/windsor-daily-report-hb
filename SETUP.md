@@ -29,10 +29,10 @@ El gasto del reporte es la **suma de todas las cuentas** listadas en
 total. La etiqueta de cada línea es el `name` que devuelve la API, así que
 renombrar en Meta cambia el reporte sin tocar código.
 
-| Cuenta | Añadida | Notas |
-|---|---|---|
-| `act_2217973965310655` | inicial | `HAIR_BIO_01` |
-| `act_3274402022747854` | 2026-08-06 | pendiente de medir con el probe |
+| Cuenta | `name` | Añadida | Moneda | Zona |
+|---|---|---|---|---|
+| `act_2217973965310655` | `HAIR_BIO_01` | inicial | USD | Europe/Madrid |
+| `act_3274402022747854` | `hair 2` | 2026-08-06 | USD | Europe/Madrid |
 
 Dos guards nuevos, ambos abortan sin publicar:
 
@@ -88,10 +88,21 @@ Medido el 2026-07-29/30 con un workflow temporal de solo lectura.
 }
 ```
 
-`act_3274402022747854` — **pendiente**. Ejecutar el workflow *Meta Accounts
-Probe* (`.github/workflows/meta-accounts-probe.yml`) y pegar aquí su salida antes
-de la primera entrega real. El probe es de solo lectura y solo recibe
-`META_ACCESS_TOKEN`; borrarlo una vez anotados los valores.
+Medido el 2026-08-06 con el mismo método, workflow temporal de solo lectura.
+
+`GET /v21.0/act_3274402022747854?fields=name,timezone_name,timezone_offset_hours_utc,currency`
+
+```json
+{
+  "name": "hair 2",
+  "timezone_name": "Europe/Madrid",
+  "timezone_offset_hours_utc": 2,
+  "currency": "USD"
+}
+```
+
+Las dos cuentas coinciden en moneda y zona, así que sus gastos nativos se pueden
+sumar y el día cierra a la misma hora para ambas.
 
 `GET /admin/api/2024-10/shop.json`
 

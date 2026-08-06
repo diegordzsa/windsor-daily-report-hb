@@ -2,7 +2,7 @@
 // contra las APIs de Meta y Shopify (ver SETUP.md), no copiados de otro repo.
 //
 //   Cuenta Meta  act_2217973965310655  timezone_name=Europe/Madrid  currency=USD
-//   Cuenta Meta  act_3274402022747854  timezone_name=?              currency=?
+//   Cuenta Meta  act_3274402022747854  timezone_name=Europe/Madrid  currency=USD
 //   Shopify      Hair Biolabs          iana_timezone=Europe/Madrid  currency=EUR
 
 export const STORE_NAME = 'Hair Biolabs ES';
