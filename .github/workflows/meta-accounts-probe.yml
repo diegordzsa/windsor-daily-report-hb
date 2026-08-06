@@ -10,8 +10,16 @@ name: Meta Accounts Probe
 #
 # Solo recibe META_ACCESS_TOKEN. No lee ventas, no escribe en Slack.
 # BORRAR este archivo una vez anotados los valores en SETUP.md.
+#
+# Se dispara con `push` y no solo con `workflow_dispatch` porque GitHub exige que
+# un workflow_dispatch exista en la rama por defecto para poder lanzarlo a mano
+# (404 si no), y este vive en una rama de trabajo. El filtro `paths` evita que se
+# repita en cada commit de la rama.
 on:
   workflow_dispatch:
+  push:
+    branches: [feat/segunda-cuenta-meta]
+    paths: ['.github/workflows/meta-accounts-probe.yml']
 
 jobs:
   probe:
