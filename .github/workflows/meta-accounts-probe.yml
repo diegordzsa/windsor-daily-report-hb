@@ -1,0 +1,55 @@
+name: Meta Accounts Probe
+
+# Workflow TEMPORAL de solo lectura. Mide las cuentas publicitarias contra la API
+# de Meta antes de confiar en ellas: si el token las alcanza, en que moneda
+# facturan y en que zona horaria cierra su dia.
+#
+# Existe porque los valores de moneda y zona de este repo estan MEDIDOS, no
+# copiados (ver config.js y SETUP.md). Es el mismo metodo con el que se midio
+# act_2217973965310655 el 2026-07-29/30.
+#
+# Solo recibe META_ACCESS_TOKEN. No lee ventas, no escribe en Slack.
+# BORRAR este archivo una vez anotados los valores en SETUP.md.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Leer la configuracion de cada cuenta
+        env:
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+        run: |
+          set -u
+          FIELDS='name,timezone_name,timezone_offset_hours_utc,currency'
+          FAILED=0
+
+          for ID in 2217973965310655 3274402022747854; do
+            echo "───────────────────────────────────────────────"
+            echo "act_$ID"
+
+            # El token va en cabecera, no en la query: asi no acaba en ningun log de URL.
+            BODY=$(curl -sS -w '\n%{http_code}' \
+              -H "Authorization: Bearer $META_ACCESS_TOKEN" \
+              "https://graph.facebook.com/v21.0/act_$ID?fields=$FIELDS")
+
+            CODE=$(echo "$BODY" | tail -n1)
+            JSON=$(echo "$BODY" | sed '$d')
+
+            echo "HTTP $CODE"
+            echo "$JSON" | jq . 2>/dev/null || echo "$JSON"
+
+            if [ "$CODE" != "200" ]; then
+              FAILED=1
+              echo "::error::act_$ID no se pudo leer (HTTP $CODE). Si es (#200) permission,"
+              echo "::error::el token no alcanza esta cuenta: dale acceso en Business Manager."
+            fi
+          done
+
+          echo "───────────────────────────────────────────────"
+          echo "Esperado en ambas para que el plan siga en pie:"
+          echo "  currency      = USD            (si no, no se pueden sumar los gastos nativos)"
+          echo "  timezone_name = Europe/Madrid  (si no, los dias cierran a horas distintas)"
+
+          exit $FAILED

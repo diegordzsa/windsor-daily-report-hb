@@ -28,12 +28,6 @@ export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz
     day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  // El gasto se muestra en la moneda de la tienda con el nativo al lado, para
-  // que la cifra sea comparable con el AOV y trazable contra el panel de Meta.
-  const spendLine = META_CURRENCY === STORE_CURRENCY
-    ? `  Gasto: ${money(metrics.adSpend, STORE_CURRENCY)}`
-    : `  Gasto: ${money(metrics.adSpend, STORE_CURRENCY)} (${money(metrics.adSpendNative, META_CURRENCY)})`;
-
   const lines = [
     `:bar_chart: *${STORE_NAME} — Reporte Diario*`,
     dateStr,
@@ -45,7 +39,7 @@ export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz
     `  1ª Susc: ${metrics.firstSubOrders} | Recurrentes: ${metrics.recurringOrders}`,
     ``,
     `:loudspeaker: *PAID ADS (Meta)*`,
-    spendLine,
+    ...spendBlock(metrics),
     `  ROAS (Meta): ${ratio(metrics.metaROAS)} | MER: ${ratio(metrics.merROAS)}`,
     `  CPO: ${money(metrics.cpo, STORE_CURRENCY)}`,
     `  Revenue atribuido: ${money(metrics.metaAttributedRevenue, STORE_CURRENCY)}`,
@@ -65,6 +59,29 @@ export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz
   ];
 
   return lines.join('\n');
+}
+
+// El gasto se muestra en la moneda de la tienda con el nativo al lado, para que
+// la cifra sea comparable con el AOV y trazable contra el panel de Meta. Con
+// varias cuentas el nativo va tambien en cada linea: el contraste se hace cuenta
+// por cuenta, y solo el total cuadra con la vista combinada del Business Manager.
+function spendBlock(metrics) {
+  const withNative = (amount, nativeAmount) =>
+    META_CURRENCY === STORE_CURRENCY
+      ? money(amount, STORE_CURRENCY)
+      : `${money(amount, STORE_CURRENCY)} (${money(nativeAmount, META_CURRENCY)})`;
+
+  const accounts = metrics.perAccount ?? [];
+
+  // Con una sola cuenta el desglose no dice nada que no diga el total.
+  if (accounts.length <= 1) {
+    return [`  Gasto: ${withNative(metrics.adSpend, metrics.adSpendNative)}`];
+  }
+
+  return [
+    ...accounts.map(a => `  ${a.label}: ${withNative(a.spend, a.spendNative)}`),
+    `  *Gasto total: ${withNative(metrics.adSpend, metrics.adSpendNative)}*`,
+  ];
 }
 
 // Red de seguridad: el prompt pide texto plano, pero si el modelo se cuela con
