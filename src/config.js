@@ -9,6 +9,9 @@ export const STORE_NAME = 'Hair Biolabs ES';
 
 export const SHOPIFY_STORE = 'ex9fk2-1i.myshopify.com';
 export const SHOPIFY_API_VERSION = '2024-10';
+// El funnel de sesiones sale de ShopifyQL (GraphQL `shopifyqlQuery`), que solo
+// existe desde la 2025-10. Separada para no mover la lectura REST de pedidos.
+export const SHOPIFY_ANALYTICS_API_VERSION = '2025-10';
 
 // Cuentas publicitarias que gastan para esta tienda. El gasto del reporte es la
 // suma de todas y el desglose sale por cuenta, etiquetado con el `name` que

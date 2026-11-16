@@ -1,5 +1,6 @@
 import {
   fetchShopifyOrders, fetchSubscriptionChargeOrders, getAccessToken, fetchShopInfo,
+  fetchShopifyFunnel,
 } from './shopify.js';
 import { fetchAllMetaAds, fetchAllMetaAccounts } from './meta.js';
 import { generateDiagnosis } from './claude.js';
@@ -117,7 +118,7 @@ async function run() {
     process.exit(1);
   }
 
-  let metaData, shopifyData, subscriptionCharges;
+  let metaData, shopifyData, subscriptionCharges, shopifyFunnel;
 
   try {
     const shopifyToken = await getAccessToken(SHOPIFY_CLIENT_ID, SHOPIFY_CLIENT_SECRET);
@@ -150,6 +151,15 @@ async function run() {
       fetchShopifyOrders(shopifyToken, reportDate),
       fetchSubscriptionChargeOrders(shopifyToken, reportDate),
     ]);
+
+    // El funnel de sesiones es un anadido: si falla (p. ej. la app aun no
+    // tiene read_reports) el reporte sale igual, con ese bloque en n/d.
+    shopifyFunnel = await fetchShopifyFunnel(shopifyToken, reportDate)
+      .then(f => ({ ok: true, ...f }))
+      .catch(err => {
+        console.error('[Shopify] Funnel failed:', err.message);
+        return { ok: false, error: err.message };
+      });
   } catch (err) {
     console.error('API fetch failed:', err.message);
     await deliver(
@@ -176,7 +186,7 @@ async function run() {
 
   let diagnosis;
   try {
-    diagnosis = await generateDiagnosis(metrics);
+    diagnosis = await generateDiagnosis(metrics, shopifyFunnel);
   } catch (err) {
     console.error('Claude diagnosis failed:', err.message, err.status ?? '', err.error ?? '');
     diagnosis = 'Diagnostico no disponible — error al generar analisis.';
@@ -189,6 +199,7 @@ async function run() {
     hoursElapsed,
     accountTz,
     fx,
+    shopifyFunnel,
   });
 
   try {

@@ -2,7 +2,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import { money } from './format.js';
 import { STORE_NAME, STORE_CURRENCY, META_CURRENCY } from './config.js';
 
-export async function generateDiagnosis(metrics) {
+// Funnel de sesiones de la tienda (todo el trafico, no solo Meta). Si no se
+// pudo leer, se dice para que el modelo no invente un funnel a cero.
+function shopifyFunnelSection(funnel) {
+  if (!funnel) return '';
+  if (!funnel.ok) return '\n\nFUNNEL TIENDA (Shopify): no disponible hoy. No lo analices.';
+  const p = r => (r == null ? 'n/d' : `${r.toFixed(2)}%`);
+  return `\n\nFUNNEL TIENDA (Shopify, todas las sesiones, % sobre sesiones):
+- Sesiones: ${funnel.sessions}
+- Anadido al carrito: ${p(funnel.cartRate)} (${funnel.cartSessions})
+- Llego al checkout: ${p(funnel.checkoutRate)} (${funnel.checkoutSessions})
+- Conversion: ${p(funnel.conversionRate)} (${funnel.completedSessions})`;
+}
+
+export async function generateDiagnosis(metrics, shopifyFunnel) {
   const client = new Anthropic();
 
   // Todas las cifras monetarias van en STORE_CURRENCY y con su simbolo correcto.
@@ -41,7 +54,7 @@ METRICAS SHOPIFY (fuente de verdad):
 - Ordenes reales: ${metrics.shopifyOrders}
 - AOV: ${m(metrics.shopifyAOV)}
 - 1ª Suscripcion (altas con tag Kaching First Order): ${metrics.firstSubOrders}
-- Recurrentes (cobros automaticos de suscripcion con exito): ${metrics.recurringOrders}
+- Recurrentes (cobros automaticos de suscripcion con exito): ${metrics.recurringOrders}${shopifyFunnelSection(shopifyFunnel)}
 
 Responde exactamente tres lineas, una por punto, sin numerarlas ni titularlas:
 1. El punto mas debil del funnel hoy y por que.

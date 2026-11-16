@@ -1,4 +1,6 @@
-import { SHOPIFY_STORE, SHOPIFY_API_VERSION, SUBSCRIPTION_TIMEZONE } from './config.js';
+import {
+  SHOPIFY_STORE, SHOPIFY_API_VERSION, SHOPIFY_ANALYTICS_API_VERSION, SUBSCRIPTION_TIMEZONE,
+} from './config.js';
 import { addDays, utcOffsetLabel } from './freshness.js';
 
 export async function getAccessToken(clientId, clientSecret) {
@@ -139,4 +141,90 @@ export async function fetchShopifyOrders(accessToken, reportDate) {
     order_net_sales: parseFloat(order.subtotal_price) || 0,
     order_tags: order.tags || '',
   }));
+}
+
+// Funnel de la tienda "como en Shopify" (Analytics > Tasa de conversion):
+// sesiones con carrito, que llegaron al checkout y que compraron, cada una
+// sobre el TOTAL de sesiones. No es el funnel de Meta: este cuenta todo el
+// trafico de la tienda, no solo los clicks del pixel.
+//
+// Requiere el scope read_reports en la app. Sin el, Shopify devuelve un error
+// de acceso y el reporte sigue saliendo con el bloque en n/d.
+const FUNNEL_COLUMNS = {
+  sessions: 'sessions',
+  cartSessions: 'sessions_with_cart_additions',
+  checkoutSessions: 'sessions_that_reached_checkout',
+  completedSessions: 'sessions_that_completed_checkout',
+};
+
+export async function fetchShopifyFunnel(accessToken, reportDate) {
+  const shopifyql = `FROM sessions SHOW ${Object.values(FUNNEL_COLUMNS).join(', ')} `
+    + `SINCE ${reportDate} UNTIL ${reportDate}`;
+
+  const query = `query Funnel($q: String!) {
+    shopifyqlQuery(query: $q) {
+      tableData { columns { name } rows }
+      parseErrors
+    }
+  }`;
+
+  console.log(`[Shopify] Funnel: ${shopifyql}`);
+  const res = await fetch(
+    `https://${SHOPIFY_STORE}/admin/api/${SHOPIFY_ANALYTICS_API_VERSION}/graphql.json`,
+    {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { q: shopifyql } }),
+    },
+  );
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Shopify GraphQL ${res.status} ${res.statusText} — ${body.substring(0, 200)}`);
+  }
+
+  const json = await res.json();
+  if (json.errors?.length) {
+    const msg = json.errors.map(e => e.message).join('; ');
+    // El caso esperado mientras la app no tenga el scope nuevo.
+    const hint = /access denied|read_reports|scope/i.test(msg) ? ' (falta el scope read_reports en la app)' : '';
+    throw new Error(`${msg}${hint}`);
+  }
+
+  const result = json.data?.shopifyqlQuery;
+  const parseErrors = result?.parseErrors;
+  if (Array.isArray(parseErrors) ? parseErrors.length : parseErrors) {
+    throw new Error(`ShopifyQL: ${JSON.stringify(parseErrors).substring(0, 200)}`);
+  }
+
+  const table = result?.tableData;
+  if (!table) throw new Error('shopifyqlQuery sin tableData');
+
+  // Las filas pueden venir como objetos {columna: valor} o como arrays en el
+  // orden de `columns`; se lee por nombre en ambos casos.
+  const names = (table.columns ?? []).map(c => c.name);
+  const rows = Array.isArray(table.rows) ? table.rows : JSON.parse(table.rows || '[]');
+  const read = (row, col) => {
+    const v = Array.isArray(row) ? row[names.indexOf(col)] : row?.[col];
+    return Number(v) || 0;
+  };
+
+  const totals = {};
+  for (const [key, col] of Object.entries(FUNNEL_COLUMNS)) {
+    // Una columna ausente leida como 0 seria un "0 % de conversion" falso.
+    if (!names.includes(col)) {
+      throw new Error(`ShopifyQL no devolvio la columna ${col} (columnas: ${names.join(', ')})`);
+    }
+    totals[key] = rows.reduce((acc, row) => acc + read(row, col), 0);
+  }
+
+  const rate = n => (totals.sessions > 0 ? (n / totals.sessions) * 100 : null);
+  const funnel = {
+    ...totals,
+    cartRate: rate(totals.cartSessions),
+    checkoutRate: rate(totals.checkoutSessions),
+    conversionRate: rate(totals.completedSessions),
+  };
+  console.log(`[Shopify] Funnel ${reportDate}: ${JSON.stringify(funnel)}`);
+  return funnel;
 }

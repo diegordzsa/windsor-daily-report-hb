@@ -23,7 +23,7 @@ export async function sendToSlack(webhookUrl, reportText) {
   }
 }
 
-export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz, fx }) {
+export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz, fx, shopifyFunnel }) {
   const dateStr = new Date(`${date}T12:00:00Z`).toLocaleDateString(STORE_LOCALE, {
     day: 'numeric', month: 'long', year: 'numeric',
   });
@@ -38,13 +38,14 @@ export function formatReport({ date, metrics, diagnosis, hoursElapsed, accountTz
     `  Ordenes: ${metrics.shopifyOrders} | AOV: ${money(metrics.shopifyAOV, STORE_CURRENCY)}`,
     `  1ª Susc: ${metrics.firstSubOrders} | Recurrentes: ${metrics.recurringOrders}`,
     ``,
+    ...shopifyFunnelLines(shopifyFunnel),
     `:loudspeaker: *PAID ADS (Meta)*`,
     ...spendBlock(metrics),
     `  ROAS (Meta): ${ratio(metrics.metaROAS)} | MER: ${ratio(metrics.merROAS)}`,
     `  CPO: ${money(metrics.cpo, STORE_CURRENCY)}`,
     `  Revenue atribuido: ${money(metrics.metaAttributedRevenue, STORE_CURRENCY)}`,
     ``,
-    `:mag: *FUNNEL*`,
+    `:mag: *FUNNEL (Meta)*`,
     `  Impresiones: ${int(metrics.impressions)}`,
     `  Link Clicks: ${int(metrics.linkClicks)} (CTR: ${pct(metrics.ctr)})`,
     `  Add to Cart: ${metrics.addToCarts} (${pct(metrics.addToCartRate)})`,
@@ -82,6 +83,26 @@ function spendBlock(metrics) {
     ...accounts.map(a => `  ${a.label}: ${withNative(a.spend, a.spendNative)}`),
     `  *Gasto total: ${withNative(metrics.adSpend, metrics.adSpendNative)}*`,
   ];
+}
+
+// Funnel de la tienda, con los mismos porcentajes que Shopify Analytics: cada
+// etapa sobre el total de sesiones. Si la lectura fallo se dice, no se pinta 0.
+function shopifyFunnelLines(funnel) {
+  if (!funnel) return [];
+  const lines = [`:shopping_trolley: *FUNNEL TIENDA (Shopify)*`];
+  if (!funnel.ok) {
+    lines.push(`  n/d — ${funnel.error}`, ``);
+    return lines;
+  }
+  const stage = (rate, n) => (rate == null ? 'n/d' : `${pct(rate, 2)} (${int(n)})`);
+  lines.push(
+    `  Sesiones: ${int(funnel.sessions)}`,
+    `  Añadido al carrito: ${stage(funnel.cartRate, funnel.cartSessions)}`,
+    `  Llegó al checkout: ${stage(funnel.checkoutRate, funnel.checkoutSessions)}`,
+    `  Conversión: ${stage(funnel.conversionRate, funnel.completedSessions)}`,
+    ``,
+  );
+  return lines;
 }
 
 // Red de seguridad: el prompt pide texto plano, pero si el modelo se cuela con
