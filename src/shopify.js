@@ -187,8 +187,12 @@ export async function fetchShopifyFunnel(accessToken, reportDate) {
   if (json.errors?.length) {
     const msg = json.errors.map(e => e.message).join('; ');
     // El caso esperado mientras la app no tenga el scope nuevo.
-    const hint = /access denied|read_reports|scope/i.test(msg) ? ' (falta el scope read_reports en la app)' : '';
-    throw new Error(`${msg}${hint}`);
+    // El texto completo va al log; a Slack solo el motivo, en una linea.
+    if (/access denied|read_reports|scope/i.test(msg)) {
+      console.error(`[Shopify] ${msg}`);
+      throw new Error('falta el permiso read_reports en la app de Shopify');
+    }
+    throw new Error(msg);
   }
 
   const result = json.data?.shopifyqlQuery;
