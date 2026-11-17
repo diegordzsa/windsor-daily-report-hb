@@ -20,6 +20,9 @@ export async function getAccessToken(clientId, clientSecret) {
   }
 
   const json = await res.json();
+  // Los permisos reales del token, no los que creemos haber configurado: si
+  // falta uno, aqui se ve sin tener que adivinar.
+  console.log(`[Shopify] Scopes del token: ${json.scope ?? '(no informados)'}`);
   return json.access_token;
 }
 
